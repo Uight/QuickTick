@@ -2,121 +2,158 @@
 using System.Runtime.InteropServices;
 using System.Threading;
 
-class HighResolutionSleep
+public class HighResTimer : IDisposable
 {
-    private static readonly IntPtr iocpHandle;
-    private static readonly IntPtr highResKey = (IntPtr)1;
-    private static IntPtr waitIocpHandle;
+    private IntPtr iocpHandle;
+    private IntPtr waitIocpHandle;
+    private IntPtr timerHandle;
+    private readonly IntPtr highResKey;
+    private bool isRunning;
+    private Thread completionThread;
+    private long intervalTicks;
 
-    static HighResolutionSleep()
-    {
-        // Create an IO Completion Port
-        iocpHandle = CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
-        if (iocpHandle == IntPtr.Zero)
-            throw new InvalidOperationException("Failed to create IO completion port.");
-
-        // Create the Wait Completion Packet Handle
-        int status = NtCreateWaitCompletionPacket(out waitIocpHandle, 0x1F0003, IntPtr.Zero);
-
-        if (status != 0) // NTSTATUS success is 0
-        {
-            throw new InvalidOperationException($"NtCreateWaitCompletionPacket failed with status {status:X8}");
-        }
-    }
-
-    //0x1F0003
-
-    public static void Sleep(TimeSpan duration)
-    {
-        // Create high-resolution timer
-        IntPtr timer = CreateWaitableTimerEx(IntPtr.Zero, null, 0x00000002 /* CREATE_WAITABLE_TIMER_HIGH_RESOLUTION */, 0x1F0003); // TIMER_ALL_ACCESS
-        if (timer == IntPtr.Zero)
-            throw new InvalidOperationException("Failed to create high-resolution waitable timer.");
-
-        try
-        {
-            // Convert duration to 100-nanosecond intervals (negative for relative time)
-            long dueTime = -duration.Ticks;
-
-            if (!SetWaitableTimer(timer, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false))
-            {
-                int error = Marshal.GetLastWin32Error();
-                throw new InvalidOperationException("Failed to set waitable timer.");
-            }
-
-            // Associate the timer with the IO Completion Port
-            int status = NtAssociateWaitCompletionPacket(waitIocpHandle, iocpHandle, timer, highResKey, IntPtr.Zero, 0, UIntPtr.Zero, IntPtr.Zero);
-            if (status != 0)
-                throw new InvalidOperationException($"NtAssociateWaitCompletionPacket failed with status {status}");
-
-            // Wait for work or the timer to expire
-            OVERLAPPED_ENTRY[] entries = new OVERLAPPED_ENTRY[64];
-            uint numEntries = 0;
-
-            if (!GetQueuedCompletionStatusEx(iocpHandle, entries, (uint)entries.Length, ref numEntries, uint.MaxValue, false))
-                throw new InvalidOperationException("GetQueuedCompletionStatusEx failed.");
-
-            // Process completion entries
-            for (int i = 0; i < numEntries; i++)
-            {
-                if (entries[i].lpCompletionKey == highResKey)
-                {
-                    // Timer expired
-                    return;
-                }
-                Console.WriteLine("H#");
-                // Handle other I/O work if needed
-            }
-        }
-        finally
-        {
-            CloseHandle(timer);
-        }
-    }
-
-    // P/Invoke Declarations
+    public event Action? TimerElapsed;
 
     [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr CreateIoCompletionPort(IntPtr FileHandle, IntPtr ExistingCompletionPort, IntPtr CompletionKey, uint NumberOfConcurrentThreads);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr CreateWaitableTimerEx(IntPtr lpTimerAttributes, string? lpTimerName, uint dwFlags, uint dwDesiredAccess);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool SetWaitableTimer(IntPtr hTimer, ref long lpDueTime, int lPeriod, IntPtr pfnCompletionRoutine, IntPtr lpArgToCompletionRoutine, bool fResume);
-
-    [DllImport("ntdll.dll", SetLastError = true)]
-    private static extern int NtAssociateWaitCompletionPacket(
-        IntPtr WaitCompletionPacketHandle,  // IO Completion Port
-        IntPtr IoCompletionHandle,          // I/O Completion Handle
-        IntPtr TargetObjectHandle,          // The timer handle
-        IntPtr KeyContext,                  // User-defined key
-        IntPtr ApcContext,                   // Usually NULL
-        int IoStatus,                        // Expected NTSTATUS (0 = STATUS_SUCCESS)
-        UIntPtr IoStatusInformation,         // Extra info (0 in most cases)
-        IntPtr AlreadySignaled               // NULL if not needed
+    private static extern IntPtr CreateIoCompletionPort(
+        IntPtr FileHandle, IntPtr ExistingCompletionPort, IntPtr CompletionKey, uint NumberOfConcurrentThreads
     );
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool GetQueuedCompletionStatusEx(IntPtr CompletionPort, [Out] OVERLAPPED_ENTRY[] lpCompletionPortEntries, uint ulCount, ref uint ulNumEntriesRemoved, uint dwMilliseconds, bool fAlertable);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool CloseHandle(IntPtr hObject);
 
     [DllImport("ntdll.dll", SetLastError = true)]
     private static extern int NtCreateWaitCompletionPacket(
-        out IntPtr WaitCompletionPacketHandle,
-        uint DesiredAccess,
-        IntPtr ObjectAttributes
+        out IntPtr WaitCompletionPacketHandle, uint DesiredAccess, IntPtr ObjectAttributes
     );
 
-    // Structures
+    [DllImport("ntdll.dll", SetLastError = true)]
+    private static extern int NtAssociateWaitCompletionPacket(
+        IntPtr WaitCompletionPacketHandle, IntPtr IoCompletionHandle, IntPtr TargetObjectHandle,
+        IntPtr KeyContext, IntPtr ApcContext, int IoStatus, UIntPtr IoStatusInformation, IntPtr AlreadySignaled
+    );
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr CreateWaitableTimerExW(
+        IntPtr lpTimerAttributes, IntPtr lpTimerName, uint dwFlags, uint dwDesiredAccess
+    );
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetWaitableTimer(
+        IntPtr hTimer, ref long lpDueTime, int lPeriod, IntPtr pfnCompletionRoutine,
+        IntPtr lpArgToCompletionRoutine, bool fResume
+    );
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetQueuedCompletionStatusEx(
+        IntPtr CompletionPort, [Out] OVERLAPPED_ENTRY[] lpCompletionPortEntries,
+        uint ulCount, out uint ulNumEntriesRemoved, uint dwMilliseconds, bool fAlertable
+    );
+
     [StructLayout(LayoutKind.Sequential)]
     private struct OVERLAPPED_ENTRY
     {
         public IntPtr lpCompletionKey;
         public IntPtr lpOverlapped;
         public IntPtr Internal;
-        public uint dwNumberOfBytesTransferred;
+        public UIntPtr dwNumberOfBytesTransferred;
+    }
+
+    /// <summary>
+    /// Current implementaiton has a slight drift. e.g. 5ms has an average of 5.1 ms
+    /// Lowest possible time seems to be around 1.5ms when setting it to 1ms.
+    /// Implementation with resetting the time using a timestampt for next event dont drift but cause some 0 time issues.
+    /// </summary>
+    public HighResTimer()
+    {
+        // Create the IOCP handle
+        iocpHandle = CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
+        if (iocpHandle == IntPtr.Zero)
+            throw new InvalidOperationException($"CreateIoCompletionPort failed: {Marshal.GetLastWin32Error()}");
+
+        // Create the Wait Completion Packet Handle
+        int status = NtCreateWaitCompletionPacket(out waitIocpHandle, 0x1F0003, IntPtr.Zero);
+        if (status != 0)
+            throw new InvalidOperationException($"NtCreateWaitCompletionPacket failed: {status:X8}");
+
+        // Create the high-resolution timer
+        timerHandle = CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, 0x2 /* HIGH_RES */, 0x1F0003);
+        if (timerHandle == IntPtr.Zero)
+            throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");
+
+        highResKey = new IntPtr(1); // Arbitrary key for completion events
+    }
+
+    public void Start(TimeSpan interval)
+    {
+        if (isRunning) return;
+        intervalTicks = interval.Ticks;
+        isRunning = true;
+
+        SetTimer(); // Start with the correct absolute time
+
+        completionThread = new Thread(CompletionThreadLoop) { IsBackground = true };
+        completionThread.Start();
+    }
+
+    public void Stop()
+    {
+        isRunning = false;
+        completionThread?.Join();
+    }
+
+    private void SetTimer()
+    {
+        long dueTime = -intervalTicks; // Negative value means relative time
+        int periodMs = (int)(intervalTicks / TimeSpan.TicksPerMillisecond);
+
+        if (!SetWaitableTimer(timerHandle, ref dueTime, periodMs, IntPtr.Zero, IntPtr.Zero, false))
+            throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
+
+        int status = NtAssociateWaitCompletionPacket(
+            waitIocpHandle, iocpHandle, timerHandle, highResKey, IntPtr.Zero, 0, UIntPtr.Zero, IntPtr.Zero
+        );
+
+        if (status != 0)
+            throw new InvalidOperationException($"NtAssociateWaitCompletionPacket failed: {status:X8}");
+    }
+
+    private void CompletionThreadLoop()
+    {
+        OVERLAPPED_ENTRY[] entries = new OVERLAPPED_ENTRY[64];
+
+        while (isRunning)
+        {
+            if (GetQueuedCompletionStatusEx(iocpHandle, entries, 64, out uint count, uint.MaxValue, false))
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    if (entries[i].lpCompletionKey == highResKey)
+                    {
+                        TimerElapsed?.Invoke(); // Trigger event when the timer expires
+
+                        var pointer = IntPtr.Zero;
+
+                        int status = NtAssociateWaitCompletionPacket(
+    waitIocpHandle, iocpHandle, timerHandle, highResKey, IntPtr.Zero, 0, UIntPtr.Zero, IntPtr.Zero);
+
+                        if (status != 0)
+                            throw new InvalidOperationException($"NtAssociateWaitCompletionPacket failed: {status:X8}");
+                    }
+                }
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        isRunning = false;
+        completionThread?.Join();
+
+        if (timerHandle != IntPtr.Zero)
+            Marshal.FreeHGlobal(timerHandle);
+
+        if (waitIocpHandle != IntPtr.Zero)
+            Marshal.FreeHGlobal(waitIocpHandle);
+
+        if (iocpHandle != IntPtr.Zero)
+            Marshal.FreeHGlobal(iocpHandle);
     }
 }
