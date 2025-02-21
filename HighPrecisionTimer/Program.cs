@@ -1,29 +1,28 @@
 ﻿using System.Diagnostics;
-using System.Timers;
 
 var stopwatch = new Stopwatch();
 
-HighResTimer timer = new HighResTimer();
+var timer = new HighResTimer();
+
+var test = new List<double>();
+
 timer.TimerElapsed += () => TimerElapsed();
 timer.Start(TimeSpan.FromMilliseconds(5));
 stopwatch.Start();
 
 while (true)
 {
-    //stopwatch.Restart();
-    //Thread.Sleep(5);
-    //HighPrecisionSleep.Sleep(TimeSpan.FromMilliseconds(5));
-    //var time = stopwatch.Elapsed.TotalMilliseconds;
-    //if (Math.Abs(time - 5) > 1)
-    {
-        //Console.WriteLine(time);
-    }
+    Thread.Sleep(1000);
+    var low = test.Min();
+    var high = test.Max();
+    var mean = test.Average();
+
+    Console.WriteLine($"{low} {high} {mean}");
+    test.Clear();
 }
 
 void TimerElapsed()
 {
-    stopwatch.Stop();
-    var time = stopwatch.Elapsed;
-    Console.WriteLine(time.TotalMilliseconds);
+    test.Add(stopwatch.Elapsed.TotalMilliseconds);
     stopwatch.Restart();
 }

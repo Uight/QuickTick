@@ -1,6 +1,4 @@
-﻿using System;
-using System.Runtime.InteropServices;
-using System.Threading;
+﻿using System.Runtime.InteropServices;
 
 public class HighResTimer : IDisposable
 {
@@ -11,12 +9,21 @@ public class HighResTimer : IDisposable
     private bool isRunning;
     private Thread completionThread;
     private long intervalTicks;
+    private long nextFireTime;
 
     public event Action? TimerElapsed;
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr CreateIoCompletionPort(
-        IntPtr FileHandle, IntPtr ExistingCompletionPort, IntPtr CompletionKey, uint NumberOfConcurrentThreads
+        IntPtr FileHandle, // A file handle or Invalid_Handle_Value
+        IntPtr ExistingCompletionPort, // Handle for a open I/O completion port or null: Must be null if FileHandle is Invalid_Handle_Value
+        UIntPtr CompletionKey, // CompletionKey to be added to all I/O completion packages related to the file handle  : Ignored if FileHandle is Invalid_Handle_Value
+        uint NumberOfConcurrentThreads // Number of threads that can be used for completion packages. 0 to allow the number of processors in the system
+    );
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(
+        IntPtr hObject // The handle to close
     );
 
     [DllImport("ntdll.dll", SetLastError = true)]
@@ -56,29 +63,21 @@ public class HighResTimer : IDisposable
         public UIntPtr dwNumberOfBytesTransferred;
     }
 
-    /// <summary>
-    /// Current implementaiton has a slight drift. e.g. 5ms has an average of 5.1 ms
-    /// Lowest possible time seems to be around 1.5ms when setting it to 1ms.
-    /// Implementation with resetting the time using a timestampt for next event dont drift but cause some 0 time issues.
-    /// </summary>
     public HighResTimer()
     {
-        // Create the IOCP handle
-        iocpHandle = CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
+        iocpHandle = CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, UIntPtr.Zero, 0);
         if (iocpHandle == IntPtr.Zero)
             throw new InvalidOperationException($"CreateIoCompletionPort failed: {Marshal.GetLastWin32Error()}");
 
-        // Create the Wait Completion Packet Handle
         int status = NtCreateWaitCompletionPacket(out waitIocpHandle, 0x1F0003, IntPtr.Zero);
         if (status != 0)
             throw new InvalidOperationException($"NtCreateWaitCompletionPacket failed: {status:X8}");
 
-        // Create the high-resolution timer
         timerHandle = CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, 0x2 /* HIGH_RES */, 0x1F0003);
         if (timerHandle == IntPtr.Zero)
             throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");
 
-        highResKey = new IntPtr(1); // Arbitrary key for completion events
+        highResKey = new IntPtr(1);
     }
 
     public void Start(TimeSpan interval)
@@ -87,7 +86,9 @@ public class HighResTimer : IDisposable
         intervalTicks = interval.Ticks;
         isRunning = true;
 
-        SetTimer(); // Start with the correct absolute time
+        nextFireTime = DateTime.UtcNow.Ticks + intervalTicks; // Compute first expiration
+
+        SetTimer();
 
         completionThread = new Thread(CompletionThreadLoop) { IsBackground = true };
         completionThread.Start();
@@ -101,10 +102,10 @@ public class HighResTimer : IDisposable
 
     private void SetTimer()
     {
-        long dueTime = -intervalTicks; // Negative value means relative time
-        int periodMs = (int)(intervalTicks / TimeSpan.TicksPerMillisecond);
+        long dueTime = nextFireTime - DateTime.UtcNow.Ticks; // Calculate absolute expiration
+        dueTime = dueTime < 0 ? 0 : -dueTime; // Ensure valid time
 
-        if (!SetWaitableTimer(timerHandle, ref dueTime, periodMs, IntPtr.Zero, IntPtr.Zero, false))
+        if (!SetWaitableTimer(timerHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false))
             throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
 
         int status = NtAssociateWaitCompletionPacket(
@@ -127,15 +128,10 @@ public class HighResTimer : IDisposable
                 {
                     if (entries[i].lpCompletionKey == highResKey)
                     {
-                        TimerElapsed?.Invoke(); // Trigger event when the timer expires
+                        nextFireTime += intervalTicks;
+                        SetTimer();
 
-                        var pointer = IntPtr.Zero;
-
-                        int status = NtAssociateWaitCompletionPacket(
-    waitIocpHandle, iocpHandle, timerHandle, highResKey, IntPtr.Zero, 0, UIntPtr.Zero, IntPtr.Zero);
-
-                        if (status != 0)
-                            throw new InvalidOperationException($"NtAssociateWaitCompletionPacket failed: {status:X8}");
+                        TimerElapsed?.Invoke();
                     }
                 }
             }
@@ -154,6 +150,8 @@ public class HighResTimer : IDisposable
             Marshal.FreeHGlobal(waitIocpHandle);
 
         if (iocpHandle != IntPtr.Zero)
-            Marshal.FreeHGlobal(iocpHandle);
+        {
+            CloseHandle(iocpHandle);
+        }
     }
 }
