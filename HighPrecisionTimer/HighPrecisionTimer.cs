@@ -21,7 +21,7 @@ public class HighPrecisionTimer : IDisposable
     public HighPrecisionTimer()
     {
 
-        iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, UIntPtr.Zero, 0);
+        iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
         if (iocpHandle == IntPtr.Zero)
             throw new InvalidOperationException($"CreateIoCompletionPort failed: {Marshal.GetLastWin32Error()}");
 
@@ -89,7 +89,7 @@ public class HighPrecisionTimer : IDisposable
             throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
 
         int status = Win32Interop.NtAssociateWaitCompletionPacket(
-            waitIocpHandle, iocpHandle, timerHandle, highResKey, IntPtr.Zero, 0, UIntPtr.Zero, IntPtr.Zero
+            waitIocpHandle, iocpHandle, timerHandle, highResKey, IntPtr.Zero, 0, IntPtr.Zero, out _
         );
 
         if (status != 0)

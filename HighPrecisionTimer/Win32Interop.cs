@@ -9,9 +9,9 @@ internal class Win32Interop
 
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern IntPtr CreateIoCompletionPort(
-        IntPtr FileHandle, // A file handle or Invalid_Handle_Value
-        IntPtr ExistingCompletionPort, // Handle for a open I/O completion port or null: Must be null if FileHandle is Invalid_Handle_Value
-        UIntPtr CompletionKey, // CompletionKey to be added to all I/O completion packages related to the file handle  : Ignored if FileHandle is Invalid_Handle_Value
+        IntPtr FileHandle, // A file handle or Invalid_Handle_Value // Not needed here => use Invalid_Handle_Value
+        IntPtr ExistingCompletionPort, // Handle for a open I/O completion port or null // Not needed here
+        IntPtr CompletionKey, // Optional CompletionKey to be added to all I/O completion packages related to the file handle // Not needed here
         uint NumberOfConcurrentThreads // Number of threads that can be used for completion packages. 0 to allow the number of processors in the system
     );
 
@@ -49,14 +49,24 @@ internal class Win32Interop
 
     [DllImport("ntdll.dll", SetLastError = true)]
     public static extern int NtAssociateWaitCompletionPacket(
-        IntPtr WaitCompletionPacketHandle, IntPtr IoCompletionHandle, IntPtr TargetObjectHandle,
-        IntPtr KeyContext, IntPtr ApcContext, int IoStatus, UIntPtr IoStatusInformation, IntPtr AlreadySignaled
+        IntPtr WaitCompletionPacketHandle, // Handle to a wait completion package
+        IntPtr IoCompletionHandle, // Handle to the I/O completion port
+        IntPtr TargetObjectHandle, // A handle to a waitable object // Here the timer
+        IntPtr KeyContext, // Optional key context // Not needed here 
+        IntPtr ApcContext, // Optional apc context // Not needed here
+        int IoStatus, // Status that would be returned on call to NtRemoveIoCompletion
+        IntPtr IoStatusInformation, // Status information that would be returned on call to NtRemoveIoCompletion
+        out bool AlreadySignaled // Indicates wether the target object was allready signaled // Not needed here
     );
 
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool SetWaitableTimer(
-        IntPtr hTimer, ref long lpDueTime, int lPeriod, IntPtr pfnCompletionRoutine,
-        IntPtr lpArgToCompletionRoutine, bool fResume
+        IntPtr hTimer, // Pointer to the timer
+        ref long lpDueTime, // Due time of the timer. Positive values are absolute timestamps while negative values are a reference to the current time (In 100ns steps)
+        int lPeriod, // If bigger then 0 the timer will be signaled multiple times // Seems to be less precise so we just keep reseeting the timer instead
+        IntPtr pfnCompletionRoutine, // Optional pointer to a completion routine // Not needed here as we use the I/O completion package instead 
+        IntPtr lpArgToCompletionRoutine, // Optional arguments for the completion routine // Not needed here
+        bool fResume // Setting for energy saving mode // Use false
     );
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -66,9 +76,13 @@ internal class Win32Interop
 
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool GetQueuedCompletionStatusEx(
-        IntPtr CompletionPort, [Out] OVERLAPPED_ENTRY[] lpCompletionPortEntries,
-        uint ulCount, out uint ulNumEntriesRemoved, uint dwMilliseconds, bool fAlertable
-    );
+    IntPtr CompletionPort, // Handle to the I/O completion port
+    [Out] OVERLAPPED_ENTRY[] lpCompletionPortEntries, // Pointer to a pre-allocated array of OVERLAPPED_ENTRY which is then filled by the function
+    uint ulCount,  // Length of the pre-allocated array of OVERLAPPED_ENTRY
+    out uint ulNumEntriesRemoved, // Actual number of OVERLAPPED_ENTRY which was read
+    uint dwMilliseconds, // Timeout for the wait operation, uint.MaxValue means Infinite
+    bool fAlertable // False => Wait for timeout; True => Do an alertable wait
+);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct OVERLAPPED_ENTRY
@@ -76,6 +90,6 @@ internal class Win32Interop
         public IntPtr lpCompletionKey;
         public IntPtr lpOverlapped;
         public IntPtr Internal;
-        public UIntPtr dwNumberOfBytesTransferred;
+        public uint dwNumberOfBytesTransferred;
     }
 }
