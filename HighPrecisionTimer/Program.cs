@@ -2,7 +2,7 @@
 
 var stopwatch = new Stopwatch();
 
-var timer = new HighResTimer();
+using var timer = new HighPrecisionTimer();
 
 var test = new List<double>();
 
