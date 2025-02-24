@@ -1,5 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 
+namespace QuickTick;
+
 internal class Win32Interop
 {
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -82,7 +84,7 @@ internal class Win32Interop
     out uint ulNumEntriesRemoved, // Actual number of OVERLAPPED_ENTRY which was read
     uint dwMilliseconds, // Timeout for the wait operation, uint.MaxValue means Infinite
     bool fAlertable // False => Wait for timeout; True => Do an alertable wait
-);
+    );
 
     [StructLayout(LayoutKind.Sequential)]
     public struct OVERLAPPED_ENTRY

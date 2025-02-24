@@ -1,45 +1,75 @@
 ﻿using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
+namespace QuickTick;
+
 [SupportedOSPlatform("windows")]
-public class HighPrecisionTimer : IDisposable
+public class QuickTickTimer : IDisposable
 {
-    private IntPtr iocpHandle;
-    private IntPtr waitIocpHandle;
-    private IntPtr timerHandle;
+    private readonly IntPtr iocpHandle;
+    private readonly IntPtr waitIocpHandle;
+    private readonly IntPtr timerHandle;
     private readonly IntPtr highResKey;
+    private readonly long intervalTicks;
+
     private bool isRunning;
-    private Thread completionThread;
-    private long intervalTicks;
     private long nextFireTime;
 
+    private Thread? completionThread;
     public event Action? TimerElapsed;
 
     private const uint NtCreateWaitCompletionPacketAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.TIMER_QUERY_STATE;
     private const uint CreateWaitableTimerExWAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.SYNCHRONIZE;
 
-    public HighPrecisionTimer()
+    public QuickTickTimer(double interval)
     {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            throw new PlatformNotSupportedException("QuickTickTimer only works on windows");
+        }
+
+        if (interval <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(interval), "Interval must be between 1 and int.MaxValue");
+        }
+
+        double roundedInterval = Math.Ceiling(interval);
+        if (roundedInterval > int.MaxValue || roundedInterval <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(interval), "Interval must be between 1 and int.MaxValue");
+        }
+
+        intervalTicks = TimeSpan.FromMilliseconds((int)roundedInterval).Ticks;
 
         iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
         if (iocpHandle == IntPtr.Zero)
+        {
             throw new InvalidOperationException($"CreateIoCompletionPort failed: {Marshal.GetLastWin32Error()}");
+        }       
 
         int status = Win32Interop.NtCreateWaitCompletionPacket(out waitIocpHandle, NtCreateWaitCompletionPacketAccessRights, IntPtr.Zero);
         if (status != 0)
+        {
             throw new InvalidOperationException($"NtCreateWaitCompletionPacket failed: {status:X8}");
+        }       
 
         timerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, Win32Interop.CreateWaitableTimerFlag_HIGH_RESOLUTION, CreateWaitableTimerExWAccessRights);
         if (timerHandle == IntPtr.Zero)
+        {
             throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");
+        }        
 
         highResKey = new IntPtr(1);
     }
 
-    public void Start(TimeSpan interval)
+    public QuickTickTimer(TimeSpan interval) : this(interval.TotalMilliseconds)
+    {
+    }
+
+    public void Start()
     {
         if (isRunning) return;
-        intervalTicks = interval.Ticks;
+ 
         isRunning = true;
 
         nextFireTime = DateTime.UtcNow.Ticks + intervalTicks; // Compute first expiration

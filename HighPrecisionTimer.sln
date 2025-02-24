@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.12.35728.132 d17.12
+VisualStudioVersion = 17.12.35728.132
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HighPrecisionTimer", "HighPrecisionTimer\HighPrecisionTimer.csproj", "{8BAE068F-59AE-4405-8179-55D600C6743C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuickTick", "QuickTickTimer\QuickTick.csproj", "{B3B62613-06BD-45B4-95F0-1F0076D1B41E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{8BAE068F-59AE-4405-8179-55D600C6743C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8BAE068F-59AE-4405-8179-55D600C6743C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8BAE068F-59AE-4405-8179-55D600C6743C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B3B62613-06BD-45B4-95F0-1F0076D1B41E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3B62613-06BD-45B4-95F0-1F0076D1B41E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3B62613-06BD-45B4-95F0-1F0076D1B41E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3B62613-06BD-45B4-95F0-1F0076D1B41E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

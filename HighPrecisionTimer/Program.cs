@@ -1,13 +1,14 @@
 ﻿using System.Diagnostics;
+using QuickTick;
 
 var stopwatch = new Stopwatch();
 
-using var timer = new HighPrecisionTimer();
+using var timer = new QuickTickTimer(5);
 
 var test = new List<double>();
 
 timer.TimerElapsed += () => TimerElapsed();
-timer.Start(TimeSpan.FromMilliseconds(5));
+timer.Start();
 stopwatch.Start();
 
 while (true)
