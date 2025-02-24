@@ -1,5 +1,5 @@
 ﻿using System.Diagnostics;
-using QuickTick;
+using QuickTickLib;
 
 var stopwatch = new Stopwatch();
 

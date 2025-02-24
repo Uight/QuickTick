@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\QuickTickTimer\QuickTick.csproj" />
+    <ProjectReference Include="..\QuickTickTimer\QuickTickLib.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace QuickTick;
+namespace QuickTickLib;
 
 internal class Win32Interop
 {

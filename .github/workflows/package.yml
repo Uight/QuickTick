@@ -1,0 +1,41 @@
+name: Deploy NuGet Packages
+
+on:
+  workflow_dispatch:  # manually trigger the workflow
+  label:  # run workflow when label/tag is created
+    types:
+      - created
+
+jobs:
+  deploy:
+    name: 🚀 Publish Packages
+    runs-on: windows-latest
+    steps:
+      - name: 🛒 Checkout
+        uses: actions/checkout@v3
+
+      - name: ✨ Setup .NET
+        uses: actions/setup-dotnet@v2
+        with:
+          dotnet-version: 8.0.x
+
+      - name: 🛠️ Setup NuGet
+        uses: nuget/setup-nuget@v1
+        with:
+          nuget-api-key: ${{ secrets.NUGET_API_KEY }}
+
+      - name: 🚀 Publish QuickTickLib
+        run: |
+          dotnet restore QuickTickLib/QuickTickLib.csproj
+          dotnet build QuickTickLib/QuickTickLib.csproj --configuration Release
+          dotnet pack QuickTickLib/QuickTickLib.csproj --configuration Release
+          nuget push "QuickTickLib\bin\Release\*.nupkg" -SkipDuplicate -Source https://api.nuget.org/v3/index.json
+
+      - name: 💾 Store Packages
+        uses: actions/upload-artifact@v3
+        with:
+          name: QuickTickLib-Packages
+          retention-days: 3
+          path: |
+            QuickTickLib/bin/Release/*.nupkg
+            QuickTickLib/bin/Release/*.snupkg

@@ -1,7 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
-namespace QuickTick;
+namespace QuickTickLib;
 
 [SupportedOSPlatform("windows")]
 public class QuickTickTimer : IDisposable
