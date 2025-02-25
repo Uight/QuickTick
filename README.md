@@ -14,3 +14,13 @@ system clock rate using TimeBeginPeriod.
 Setting a timer to 5ms leads to most iteration being around 5ms but some also way higher.
 In my tests the timer was between 4 and 6ms for over 98% of all intervals but the absolute max was 29ms. 
 However the timer keeps an average interval of exactly 5ms.* 
+
+### TODO
+* Check priority for the completionThread. 
+* Decouple the completionThread from invoking the TimerElapsed events. Could allow higher prio of completion thread 
+	=> (use a seperate processing thread? couple with ConcurrentQueue<Action> eventQueue and AutoResetEvent?)
+    => Use SynchronizingObject?
+* Use GetQueuedCompletionStatus instead of GetQueuedCompletionStatusEx?
+* Add adjusting timer interval like in Systems.Timers.Timer
+* Add AutoReset like in Systems.Timers.Timer
+* Add a sleep or delay based on this?
