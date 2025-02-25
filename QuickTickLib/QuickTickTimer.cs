@@ -77,6 +77,7 @@ public class QuickTickTimer : IDisposable
         SetTimer();
 
         completionThread = new Thread(CompletionThreadLoop) { IsBackground = true };
+        completionThread.Priority = ThreadPriority.AboveNormal; // Boost priority it greatly increases timer precision
         completionThread.Start();
     }
 
@@ -120,14 +121,16 @@ public class QuickTickTimer : IDisposable
         dueTime = dueTime < 0 ? 0 : -dueTime; // Ensure valid time
 
         if (!Win32Interop.SetWaitableTimer(timerHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false))
+        {
             throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
+        }      
 
-        int status = Win32Interop.NtAssociateWaitCompletionPacket(
-            waitIocpHandle, iocpHandle, timerHandle, successCompletionKey, IntPtr.Zero, 0, IntPtr.Zero, out _
-        );
+        int status = Win32Interop.NtAssociateWaitCompletionPacket(waitIocpHandle, iocpHandle, timerHandle, successCompletionKey, IntPtr.Zero, 0, IntPtr.Zero, out _);
 
         if (status != 0)
+        {
             throw new InvalidOperationException($"NtAssociateWaitCompletionPacket failed: {status:X8}");
+        }     
     }
 
     private void CompletionThreadLoop()
