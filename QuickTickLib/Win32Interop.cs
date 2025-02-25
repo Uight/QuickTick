@@ -86,6 +86,14 @@ internal class Win32Interop
     bool fAlertable // False => Wait for timeout; True => Do an alertable wait
     );
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool PostQueuedCompletionStatus(
+        IntPtr completionPort, // Handle to the I/O completion port
+        uint numberOfBytesTransferred, // Value that is returned as lpNumberOfBytesTransferred on GetQueuedCompletionStatus
+        IntPtr completionKey, // Value thats returned as lpCompletionKey on GetQueuedCompletionStatus
+        IntPtr lpOverlapped // Value thats returned as lpOverlapped on GetQueuedCompletionStatus
+    );
+
     [StructLayout(LayoutKind.Sequential)]
     public struct OVERLAPPED_ENTRY
     {

@@ -9,7 +9,7 @@ public class QuickTickTimer : IDisposable
     private readonly IntPtr iocpHandle;
     private readonly IntPtr waitIocpHandle;
     private readonly IntPtr timerHandle;
-    private readonly IntPtr highResKey;
+    private readonly IntPtr successCompletionKey;
     private readonly long intervalTicks;
 
     private bool isRunning;
@@ -59,7 +59,7 @@ public class QuickTickTimer : IDisposable
             throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");
         }        
 
-        highResKey = new IntPtr(1);
+        successCompletionKey = new IntPtr(1);
     }
 
     public QuickTickTimer(TimeSpan interval) : this(interval.TotalMilliseconds)
@@ -87,6 +87,10 @@ public class QuickTickTimer : IDisposable
         {
             Win32Interop.CancelWaitableTimer(timerHandle);
         }
+
+        // Post a dummy completion to get out of GetQueuedCompletionStatusEx in the completionThread. Use a key different to successCompletionKey
+        Win32Interop.PostQueuedCompletionStatus(iocpHandle, 0, IntPtr.Zero, IntPtr.Zero);
+
         completionThread?.Join();
     }
 
@@ -119,7 +123,7 @@ public class QuickTickTimer : IDisposable
             throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
 
         int status = Win32Interop.NtAssociateWaitCompletionPacket(
-            waitIocpHandle, iocpHandle, timerHandle, highResKey, IntPtr.Zero, 0, IntPtr.Zero, out _
+            waitIocpHandle, iocpHandle, timerHandle, successCompletionKey, IntPtr.Zero, 0, IntPtr.Zero, out _
         );
 
         if (status != 0)
@@ -136,7 +140,7 @@ public class QuickTickTimer : IDisposable
             {
                 for (int i = 0; i < count; i++)
                 {
-                    if (entries[i].lpCompletionKey == highResKey)
+                    if (entries[i].lpCompletionKey == successCompletionKey)
                     {
                         nextFireTime += intervalTicks;
                         SetTimer();
