@@ -95,21 +95,21 @@ internal partial class Win32Interop
 
     [LibraryImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetQueuedCompletionStatus(
+    IntPtr completionPort, // Handle to the I/O completion port
+    out uint lpNumberOfBytesTransferred, // Number of bytes transferred in the I/O completion operation.
+    out IntPtr lpCompletionKey, // Pointer to the completionKey
+    out IntPtr lpOverlapped, // Pointer to a OVERLAPPED structure that was specified when the completed I/O operation was started.
+    uint dwMilliseconds // Timeout for the wait operation, uint.MaxValue means Infinite
+);
+
+    [LibraryImport(KernelDll, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool PostQueuedCompletionStatus(
         IntPtr completionPort, // Handle to the I/O completion port
         uint numberOfBytesTransferred, // Value that is returned as lpNumberOfBytesTransferred on GetQueuedCompletionStatus
         IntPtr completionKey, // Value thats returned as lpCompletionKey on GetQueuedCompletionStatus
         IntPtr lpOverlapped // Value thats returned as lpOverlapped on GetQueuedCompletionStatus
-    );
-
-    [LibraryImport(KernelDll, SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static partial bool GetQueuedCompletionStatus(
-        IntPtr completionPort, // Handle to the I/O completion port
-        out uint lpNumberOfBytesTransferred, // Number of bytes transferred in the I/O completion operation.
-        out IntPtr lpCompletionKey, // Pointer to the completionKey
-        out IntPtr lpOverlapped, // Pointer to a OVERLAPPED structure that was specified when the completed I/O operation was started.
-        uint dwMilliseconds // Timeout for the wait operation, uint.MaxValue means Infinite
     );
 
     [StructLayout(LayoutKind.Sequential)]

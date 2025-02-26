@@ -10,13 +10,35 @@ public class QuickTickTimer : IDisposable
     private readonly IntPtr waitIocpHandle;
     private readonly IntPtr timerHandle;
     private readonly IntPtr successCompletionKey;
-    private readonly long intervalTicks;
+    private long intervalTicks;
+    private double intervalMs;
 
     private bool isRunning;
     private long nextFireTime;
 
     private Thread? completionThread;
     public event Action? TimerElapsed;
+
+    public double Interval
+    {
+        get => intervalMs;
+        set
+        {
+            if (value <= 0)
+            {
+                throw new ArgumentOutOfRangeException("Interval must be between 1 and int.MaxValue");
+            }
+
+            double roundedInterval = Math.Ceiling(value);
+            if (roundedInterval > int.MaxValue || roundedInterval <= 0)
+            {
+                throw new ArgumentOutOfRangeException("Interval must be between 1 and int.MaxValue");
+            }
+
+            intervalMs = roundedInterval;
+            intervalTicks = TimeSpan.FromMilliseconds(intervalMs).Ticks;
+        }
+    }
 
     private const uint NtCreateWaitCompletionPacketAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.TIMER_QUERY_STATE;
     private const uint CreateWaitableTimerExWAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.SYNCHRONIZE;
@@ -28,18 +50,7 @@ public class QuickTickTimer : IDisposable
             throw new PlatformNotSupportedException("QuickTickTimer only works on windows");
         }
 
-        if (interval <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(interval), "Interval must be between 1 and int.MaxValue");
-        }
-
-        double roundedInterval = Math.Ceiling(interval);
-        if (roundedInterval > int.MaxValue || roundedInterval <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(interval), "Interval must be between 1 and int.MaxValue");
-        }
-
-        intervalTicks = TimeSpan.FromMilliseconds((int)roundedInterval).Ticks;
+        Interval = interval;
 
         iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
         if (iocpHandle == IntPtr.Zero)
@@ -62,9 +73,7 @@ public class QuickTickTimer : IDisposable
         successCompletionKey = new IntPtr(1);
     }
 
-    public QuickTickTimer(TimeSpan interval) : this(interval.TotalMilliseconds)
-    {
-    }
+    public QuickTickTimer(TimeSpan interval) : this(interval.TotalMilliseconds) {}
 
     public void Start()
     {

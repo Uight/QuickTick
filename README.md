@@ -20,7 +20,5 @@ However the timer keeps an average interval of exactly 5ms.*
 * Decouple the completionThread from invoking the TimerElapsed events. Could allow higher prio of completion thread 
 	=> (use a seperate processing thread? couple with ConcurrentQueue<Action> eventQueue and AutoResetEvent?)
     => Use SynchronizingObject?
-* Use GetQueuedCompletionStatus instead of GetQueuedCompletionStatusEx?
-* Add adjusting timer interval like in Systems.Timers.Timer
 * Add AutoReset like in Systems.Timers.Timer
 * Add a sleep or delay based on this?
