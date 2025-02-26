@@ -8,12 +8,19 @@ using var timer = new QuickTickTimer(5);
 var test = new List<double>();
 
 timer.TimerElapsed += () => TimerElapsed();
+timer.AutoReset = true;
 timer.Start();
 stopwatch.Start();
 
 while (true)
 {
     Thread.Sleep(1000);
+
+    if (test.Count == 0)
+    {
+        continue;
+    }
+
     var low = test.Min();
     var high = test.Max();
     var mean = test.Average();

@@ -12,7 +12,7 @@ public class QuickTickTimer : IDisposable
     private readonly IntPtr successCompletionKey;
     private long intervalTicks;
     private double intervalMs;
-
+    private bool autoReset;
     private bool isRunning;
     private long nextFireTime;
 
@@ -38,6 +38,12 @@ public class QuickTickTimer : IDisposable
             intervalMs = roundedInterval;
             intervalTicks = TimeSpan.FromMilliseconds(intervalMs).Ticks;
         }
+    }
+
+    public bool AutoReset
+    {
+        get => autoReset;
+        set => autoReset = value;
     }
 
     private const uint NtCreateWaitCompletionPacketAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.TIMER_QUERY_STATE;
@@ -92,6 +98,11 @@ public class QuickTickTimer : IDisposable
 
     public void Stop()
     {
+        if (!isRunning)
+        {
+            return;
+        }
+
         isRunning = false;
         if (timerHandle != IntPtr.Zero)
         {
@@ -150,8 +161,19 @@ public class QuickTickTimer : IDisposable
             {
                 if (lpCompletionKey == successCompletionKey)
                 {
-                    nextFireTime += intervalTicks;
-                    SetTimer();
+                    if (autoReset)
+                    {
+                        nextFireTime += intervalTicks;
+                        SetTimer();
+                    }
+                    else
+                    {
+                        isRunning = false;
+                        if (timerHandle != IntPtr.Zero)
+                        {
+                            Win32Interop.CancelWaitableTimer(timerHandle);
+                        }
+                    }
 
                     TimerElapsed?.Invoke();
                 }
