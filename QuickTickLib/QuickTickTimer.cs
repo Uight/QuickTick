@@ -135,21 +135,16 @@ public class QuickTickTimer : IDisposable
 
     private void CompletionThreadLoop()
     {
-        Win32Interop.OVERLAPPED_ENTRY[] entries = new Win32Interop.OVERLAPPED_ENTRY[64];
-
         while (isRunning)
         {
-            if (Win32Interop.GetQueuedCompletionStatusEx(iocpHandle, entries, 64, out uint count, uint.MaxValue, false))
+            if (Win32Interop.GetQueuedCompletionStatus(iocpHandle, out _, out var lpCompletionKey, out _, uint.MaxValue))
             {
-                for (int i = 0; i < count; i++)
+                if (lpCompletionKey == successCompletionKey)
                 {
-                    if (entries[i].lpCompletionKey == successCompletionKey)
-                    {
-                        nextFireTime += intervalTicks;
-                        SetTimer();
+                    nextFireTime += intervalTicks;
+                    SetTimer();
 
-                        TimerElapsed?.Invoke();
-                    }
+                    TimerElapsed?.Invoke();
                 }
             }
         }
