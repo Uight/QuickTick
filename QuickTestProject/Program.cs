@@ -1,36 +1,46 @@
 ﻿using System.Diagnostics;
 using QuickTickLib;
 
-var stopwatch = new Stopwatch();
+for (int i = 0; i < 5; i++)
+{
+    var delayStopwatch = new Stopwatch();
+    delayStopwatch.Start();
+    await QuickTickTiming.Delay(5);
+    delayStopwatch.Stop();
+
+    Console.WriteLine($"delay timing: {delayStopwatch.Elapsed.TotalMilliseconds}");
+}
+
+var timerStopwatch = new Stopwatch();
 
 using var timer = new QuickTickTimer(5);
 
-var test = new List<double>();
+var timerTimingValues = new List<double>();
 
 timer.TimerElapsed += () => TimerElapsed();
 timer.AutoReset = true;
 timer.Start();
-stopwatch.Start();
+timerStopwatch.Start();
 
 while (true)
 {
     Thread.Sleep(1000);
 
-    if (test.Count == 0)
+    if (timerTimingValues.Count == 0)
     {
         continue;
     }
 
-    var low = test.Min();
-    var high = test.Max();
-    var mean = test.Average();
+    var low = timerTimingValues.Min();
+    var high = timerTimingValues.Max();
+    var mean = timerTimingValues.Average();
 
     Console.WriteLine($"{low} {high} {mean}");
-    test.Clear();
+    timerTimingValues.Clear();
 }
 
 void TimerElapsed()
 {
-    test.Add(stopwatch.Elapsed.TotalMilliseconds);
-    stopwatch.Restart();
+    timerTimingValues.Add(timerStopwatch.Elapsed.TotalMilliseconds);
+    timerStopwatch.Restart();
 }
