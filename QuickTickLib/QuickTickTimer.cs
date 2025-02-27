@@ -46,14 +46,14 @@ public class QuickTickTimer : IDisposable
         set => autoReset = value;
     }
 
-    private const uint NtCreateWaitCompletionPacketAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.TIMER_QUERY_STATE;
-    private const uint CreateWaitableTimerExWAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.SYNCHRONIZE;
+    public const uint NtCreateWaitCompletionPacketAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.TIMER_QUERY_STATE;
+    public const uint CreateWaitableTimerExWAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.SYNCHRONIZE;
 
     public QuickTickTimer(double interval)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            throw new PlatformNotSupportedException("QuickTickTimer only works on windows");
+            throw new PlatformNotSupportedException("QuickTickLib only works on windows");
         }
 
         Interval = interval;

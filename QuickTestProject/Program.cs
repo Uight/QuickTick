@@ -11,6 +11,16 @@ for (int i = 0; i < 5; i++)
     Console.WriteLine($"delay timing: {delayStopwatch.Elapsed.TotalMilliseconds}");
 }
 
+for (int i = 0; i < 5; i++)
+{
+    var sleepStopwatch = new Stopwatch();
+    sleepStopwatch.Start();
+    QuickTickTiming.Sleep(5);
+    sleepStopwatch.Stop();
+
+    Console.WriteLine($"sleep timing: {sleepStopwatch.Elapsed.TotalMilliseconds}");
+}
+
 var timerStopwatch = new Stopwatch();
 
 using var timer = new QuickTickTimer(5);
@@ -22,7 +32,9 @@ timer.AutoReset = true;
 timer.Start();
 timerStopwatch.Start();
 
-while (true)
+var run = true;
+
+while (run)
 {
     Thread.Sleep(1000);
 
