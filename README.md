@@ -1,5 +1,8 @@
 # QuickTick
 
+[![](https://img.shields.io/nuget/vpre/QuickTickLib?color=%23004880&label=NuGet&logo=NuGet)](https://www.nuget.org/packages/QuickTickLib/)
+[![GitHub](https://img.shields.io/github/license/uight/quicktick?color=%231281c0)](LICENSE)
+
 QuickTick is a small library based on what was discussed in a .net runtime issue on github: https://github.com/dotnet/runtime/issues/67088
 It is based on the timer the microsoft Go team implemented and that was presented in: https://devblogs.microsoft.com/go/high-resolution-timers-windows/
 
