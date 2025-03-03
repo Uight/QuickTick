@@ -7,8 +7,8 @@
     <Authors>Uight</Authors>
     <Description>A sub 15.6ms timer library for windows written in .net8.0</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/Uight/QuickTickTimer</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/Uight/QuickTickTimer</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/Uight/QuickTick</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Uight/QuickTick</RepositoryUrl>
     <PackageTags>timer timing tick</PackageTags>
     <AnalysisLevel>latest</AnalysisLevel>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
