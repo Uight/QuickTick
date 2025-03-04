@@ -24,7 +24,6 @@ provides async Delay function based on the QuickTickTimer.
 provides a sleep function similar to Thread.Sleep().
 
 ### TODO
-* Check priority for the completionThread. 
 * Decouple the completionThread from invoking the TimerElapsed events. Could allow higher prio of completion thread 
 	=> (use a seperate processing thread? couple with ConcurrentQueue<Action> eventQueue and AutoResetEvent?)
     => Use SynchronizingObject?

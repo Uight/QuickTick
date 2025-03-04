@@ -9,12 +9,13 @@ public class QuickTickTimer : IDisposable
     private readonly IntPtr iocpHandle;
     private readonly IntPtr waitIocpHandle;
     private readonly IntPtr timerHandle;
-    private readonly IntPtr successCompletionKey;
+    private readonly IntPtr successCompletionKey = new IntPtr(1);
     private long intervalTicks;
     private double intervalMs;
     private bool autoReset;
     private bool isRunning;
     private long nextFireTime;
+    private ThreadPriority priority = ThreadPriority.AboveNormal;
 
     private Thread? completionThread;
     public event QuickTickElapsedEventHandler? Elapsed;
@@ -37,6 +38,19 @@ public class QuickTickTimer : IDisposable
 
             intervalMs = roundedInterval;
             intervalTicks = TimeSpan.FromMilliseconds(intervalMs).Ticks;
+        }
+    }
+
+    public ThreadPriority Priority
+    {
+        get => priority;
+        set
+        {
+            priority = value;
+            if (completionThread != null)
+            {
+                completionThread.Priority = priority;
+            }
         }
     }
 
@@ -74,9 +88,7 @@ public class QuickTickTimer : IDisposable
         if (timerHandle == IntPtr.Zero)
         {
             throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");
-        }        
-
-        successCompletionKey = new IntPtr(1);
+        }
     }
 
     public QuickTickTimer(TimeSpan interval) : this(interval.TotalMilliseconds) {}
@@ -91,8 +103,11 @@ public class QuickTickTimer : IDisposable
 
         SetTimer();
 
-        completionThread = new Thread(CompletionThreadLoop) { IsBackground = true };
-        completionThread.Priority = ThreadPriority.AboveNormal; // Boost priority it greatly increases timer precision
+        completionThread = new Thread(CompletionThreadLoop)
+        {
+            IsBackground = true,
+            Priority = priority // Allow to boost priority as it greatly increases timer precision
+        };
         completionThread.Start();
     }
 
@@ -113,6 +128,7 @@ public class QuickTickTimer : IDisposable
         Win32Interop.PostQueuedCompletionStatus(iocpHandle, 0, IntPtr.Zero, IntPtr.Zero);
 
         completionThread?.Join();
+        completionThread = null;
     }
 
     public void Dispose()
