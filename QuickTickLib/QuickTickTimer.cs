@@ -17,7 +17,7 @@ public class QuickTickTimer : IDisposable
     private long nextFireTime;
 
     private Thread? completionThread;
-    public event Action? TimerElapsed;
+    public event QuickTickElapsedEventHandler? Elapsed;
 
     public double Interval
     {
@@ -161,6 +161,11 @@ public class QuickTickTimer : IDisposable
             {
                 if (lpCompletionKey == successCompletionKey)
                 {
+                    var actualFireTime = DateTime.UtcNow;
+                    var scheduledFireTime = new DateTime(nextFireTime, DateTimeKind.Utc);
+
+                    var elapsedEventArgs = new QuickTickElapsedEventArgs(actualFireTime, scheduledFireTime);
+
                     if (autoReset)
                     {
                         nextFireTime += intervalTicks;
@@ -175,7 +180,10 @@ public class QuickTickTimer : IDisposable
                         }
                     }
 
-                    TimerElapsed?.Invoke();
+                    if (Elapsed is not null)
+                    {
+                        Elapsed(this, elapsedEventArgs);
+                    }
                 }
             }
         }

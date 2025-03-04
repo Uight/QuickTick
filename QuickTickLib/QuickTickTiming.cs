@@ -13,7 +13,7 @@ public static class QuickTickTiming
         using (var timer = new QuickTickTimer(milliseconds))
         {
             timer.AutoReset = false;
-            timer.TimerElapsed += () => tcs.TrySetResult(true);
+            timer.Elapsed += (object? _, QuickTickElapsedEventArgs _) => tcs.TrySetResult(true);
             timer.Start();
 
             using (cancellationToken.Register(() => tcs.TrySetCanceled()))
@@ -25,19 +25,8 @@ public static class QuickTickTiming
 
     public static async Task Delay(TimeSpan timeSpan, CancellationToken cancellationToken = default)
     {
-        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        using (var timer = new QuickTickTimer(timeSpan))
-        {
-            timer.AutoReset = false;
-            timer.TimerElapsed += () => tcs.TrySetResult(true);
-            timer.Start();
-
-            using (cancellationToken.Register(() => tcs.TrySetCanceled()))
-            {
-                await tcs.Task;
-            }
-        }
+        var milliseconds = (int)Math.Ceiling(timeSpan.TotalMilliseconds);
+        await Delay(milliseconds, cancellationToken);
     }
 
     public static void Sleep(int sleepTimeMs)
