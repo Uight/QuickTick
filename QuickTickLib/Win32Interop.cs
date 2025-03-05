@@ -101,7 +101,7 @@ internal partial class Win32Interop
     out IntPtr lpCompletionKey, // Pointer to the completionKey
     out IntPtr lpOverlapped, // Pointer to a OVERLAPPED structure that was specified when the completed I/O operation was started.
     uint dwMilliseconds // Timeout for the wait operation, uint.MaxValue means Infinite
-);
+    );
 
     [LibraryImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -110,6 +110,12 @@ internal partial class Win32Interop
         uint numberOfBytesTransferred, // Value that is returned as lpNumberOfBytesTransferred on GetQueuedCompletionStatus
         IntPtr completionKey, // Value thats returned as lpCompletionKey on GetQueuedCompletionStatus
         IntPtr lpOverlapped // Value thats returned as lpOverlapped on GetQueuedCompletionStatus
+    );
+
+    [LibraryImport(NtDll, SetLastError = true)]
+    public static partial int NtCancelWaitCompletionPacket(
+        IntPtr WaitCompletionPacketHandle, // Handle to a wait completion package
+        [MarshalAs(UnmanagedType.Bool)] bool RemoveSignaledPacket // Whether to attempt to cancel a packet from IO completion object queue.
     );
 
     [StructLayout(LayoutKind.Sequential)]

@@ -129,6 +129,11 @@ public class QuickTickTimer : IDisposable
 
         completionThread?.Join();
         completionThread = null;
+
+        if (waitIocpHandle != IntPtr.Zero)
+        {
+            Win32Interop.NtCancelWaitCompletionPacket(waitIocpHandle, true);
+        }
     }
 
     public void Dispose()

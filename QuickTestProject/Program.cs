@@ -30,6 +30,8 @@ var timerTimingValues = new List<double>();
 timer.Elapsed += TimerElapsed;
 timer.AutoReset = true;
 timer.Start();
+timer.Stop(); // Just for testing
+timer.Start();
 timerStopwatch.Start();
 
 var run = true;
