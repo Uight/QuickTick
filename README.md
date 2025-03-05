@@ -89,7 +89,7 @@ This class implements the `IDisposable` interface. When you are finished using t
 
 > [!Note]
 > The actual timing accuracy of the timer is mostly based on the systems thread scheduler.
-> On average the system takes around 300µs to signal the timer thread after the interval finished.
+> On average the system takes around 300Âµs to signal the timer thread after the interval finished.
 > This can change based on the system load and other factors like energy saving settings.
 > To improve the timing accuracy of the timer you can set the `Priority` property to `ThreadPriority.Highest`.
 
@@ -259,6 +259,6 @@ Asynchronously blocks the current thread for the specified duration. It allows c
 
 ##### Exceptions
 
-- `ArgumentOutOfRangeException`: Thrown if `interval` or `timeSpan` is less than or equal to zero milliseconds.
+- `ArgumentOutOfRangeException`: Thrown if `interval` or `timeSpan` is less than or equal to zero.
 - `PlatformNotSupportedException`: Thrown if the platform is not Windows.
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
