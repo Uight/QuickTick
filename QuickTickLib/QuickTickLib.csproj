@@ -5,16 +5,16 @@
     <TargetFramework>net8.0</TargetFramework>
 
     <Authors>Uight</Authors>
-    <Description>A sub 15.6ms timer library for windows written in .net8.0</Description>
+    <Description>HighPrecision Timer, Sleep and Delay functions in .net8.0 for windows</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Uight/QuickTick</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Uight/QuickTick</RepositoryUrl>
-    <PackageTags>timer timing tick</PackageTags>
+    <PackageTags>Timing Timer Sleep Delay</PackageTags>
     <AnalysisLevel>latest</AnalysisLevel>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <PackageReleaseNotes></PackageReleaseNotes>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>0.0.1</Version>
+    <Version>1.0.0</Version>
     <PackageReadmeFile>README.md</PackageReadmeFile>
    
     <ImplicitUsings>enable</ImplicitUsings>
