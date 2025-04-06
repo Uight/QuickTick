@@ -51,13 +51,13 @@ public static class QuickTickTiming
         }
 
         IntPtr waitIocpHandle;
-        var ntCreateWaitCompletionPacketStatus = Win32Interop.NtCreateWaitCompletionPacket(out waitIocpHandle, QuickTickTimer.NtCreateWaitCompletionPacketAccessRights, IntPtr.Zero);
+        var ntCreateWaitCompletionPacketStatus = Win32Interop.NtCreateWaitCompletionPacket(out waitIocpHandle, QuickTickHelper.NtCreateWaitCompletionPacketAccessRights, IntPtr.Zero);
         if (ntCreateWaitCompletionPacketStatus != 0)
         {
             throw new InvalidOperationException($"NtCreateWaitCompletionPacket failed: {ntCreateWaitCompletionPacketStatus:X8}");
         }
 
-        var timerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, Win32Interop.CreateWaitableTimerFlag_HIGH_RESOLUTION, QuickTickTimer.CreateWaitableTimerExWAccessRights);
+        var timerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, Win32Interop.CreateWaitableTimerFlag_HIGH_RESOLUTION, QuickTickHelper.CreateWaitableTimerExWAccessRights);
         if (timerHandle == IntPtr.Zero)
         {
             throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");

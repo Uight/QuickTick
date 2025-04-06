@@ -60,9 +60,6 @@ public class QuickTickTimer : IDisposable
         set => autoReset = value;
     }
 
-    public const uint NtCreateWaitCompletionPacketAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.TIMER_QUERY_STATE;
-    public const uint CreateWaitableTimerExWAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.SYNCHRONIZE;
-
     public QuickTickTimer(double interval)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -78,13 +75,13 @@ public class QuickTickTimer : IDisposable
             throw new InvalidOperationException($"CreateIoCompletionPort failed: {Marshal.GetLastWin32Error()}");
         }       
 
-        int status = Win32Interop.NtCreateWaitCompletionPacket(out waitIocpHandle, NtCreateWaitCompletionPacketAccessRights, IntPtr.Zero);
+        int status = Win32Interop.NtCreateWaitCompletionPacket(out waitIocpHandle, QuickTickHelper.NtCreateWaitCompletionPacketAccessRights, IntPtr.Zero);
         if (status != 0)
         {
             throw new InvalidOperationException($"NtCreateWaitCompletionPacket failed: {status:X8}");
         }       
 
-        timerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, Win32Interop.CreateWaitableTimerFlag_HIGH_RESOLUTION, CreateWaitableTimerExWAccessRights);
+        timerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, Win32Interop.CreateWaitableTimerFlag_HIGH_RESOLUTION, QuickTickHelper.CreateWaitableTimerExWAccessRights);
         if (timerHandle == IntPtr.Zero)
         {
             throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");
