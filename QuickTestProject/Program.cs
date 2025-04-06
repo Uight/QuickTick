@@ -11,6 +11,19 @@ for (int i = 0; i < 5; i++)
     Console.WriteLine($"delay timing: {delayStopwatch.Elapsed.TotalMilliseconds}");
 }
 
+var delayWithCancelStopwatch = new Stopwatch();
+using var cts = new CancellationTokenSource();
+_ = Task.Run(() =>
+{
+    Thread.Sleep(50);
+    cts.Cancel();
+});
+await QuickTickTiming.Delay(TimeSpan.FromMilliseconds(100), cts.Token);
+delayWithCancelStopwatch.Stop();
+
+Console.WriteLine($"delay with cancel after 50ms timing: {delayWithCancelStopwatch.Elapsed.TotalMilliseconds}");
+
+
 for (int i = 0; i < 5; i++)
 {
     var sleepStopwatch = new Stopwatch();
