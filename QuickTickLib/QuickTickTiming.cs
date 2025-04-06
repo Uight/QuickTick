@@ -8,7 +8,7 @@ public static class QuickTickTiming
 {
     public static async Task Delay(int milliseconds, CancellationToken cancellationToken = default)
     {
-        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tcs = new TaskCompletionSource<bool>();
 
         using (var timer = new QuickTickTimer(milliseconds))
         {
@@ -18,7 +18,14 @@ public static class QuickTickTiming
 
             using (cancellationToken.Register(() => tcs.TrySetCanceled()))
             {
-                await tcs.Task; 
+                try
+                {
+                    await tcs.Task;
+                }
+                catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Ignore
+                }
             }
         }
     }

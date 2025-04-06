@@ -15,9 +15,10 @@ var delayWithCancelStopwatch = new Stopwatch();
 using var cts = new CancellationTokenSource();
 _ = Task.Run(() =>
 {
-    Thread.Sleep(50);
+    Thread.Sleep(45); //Use sub 46.8ms time (smaller 3*15.6) to get cancel around 50ms later
     cts.Cancel();
 });
+delayWithCancelStopwatch.Start();
 await QuickTickTiming.Delay(TimeSpan.FromMilliseconds(100), cts.Token);
 delayWithCancelStopwatch.Stop();
 
