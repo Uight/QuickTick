@@ -84,17 +84,6 @@ internal partial class Win32Interop
 
     [LibraryImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    public static partial bool GetQueuedCompletionStatusEx(
-        IntPtr CompletionPort, // Handle to the I/O completion port
-        [Out] OVERLAPPED_ENTRY[] lpCompletionPortEntries, // Pointer to a pre-allocated array of OVERLAPPED_ENTRY which is then filled by the function
-        uint ulCount,  // Length of the pre-allocated array of OVERLAPPED_ENTRY
-        out uint ulNumEntriesRemoved, // Actual number of OVERLAPPED_ENTRY which was read
-        uint dwMilliseconds, // Timeout for the wait operation, uint.MaxValue means Infinite
-        [MarshalAs(UnmanagedType.Bool)] bool fAlertable // False => Wait for timeout; True => Do an alertable wait
-    );
-
-    [LibraryImport(KernelDll, SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetQueuedCompletionStatus(
     IntPtr completionPort, // Handle to the I/O completion port
     out uint lpNumberOfBytesTransferred, // Number of bytes transferred in the I/O completion operation.

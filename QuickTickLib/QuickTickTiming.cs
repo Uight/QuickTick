@@ -10,7 +10,7 @@ public static class QuickTickTiming
     {
         var tcs = new TaskCompletionSource<bool>();
 
-        using (var timer = new QuickTickTimer(milliseconds))
+        using (var timer = QuickTickTimer.Create(milliseconds))
         {
             timer.AutoReset = false;
             timer.Elapsed += (object? _, QuickTickElapsedEventArgs _) => tcs.TrySetResult(true);
