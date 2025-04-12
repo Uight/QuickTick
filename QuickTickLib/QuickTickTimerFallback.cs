@@ -22,8 +22,6 @@ internal class QuickTickTimerFallback : IQuickTickTimer
         set => timer.AutoReset = value;
     }
 
-    public ThreadPriority Priority { get; set; } = ThreadPriority.Normal; // Can't really control with System.Timers.Timer
-
     public event QuickTickElapsedEventHandler? Elapsed;
 
     public QuickTickTimerFallback(double interval)

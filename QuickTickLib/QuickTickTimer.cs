@@ -24,12 +24,6 @@ public sealed class QuickTickTimer : IQuickTickTimer
         set => timer.AutoReset = value;
     }
 
-    public ThreadPriority Priority
-    {
-        get => timer.Priority;
-        set => timer.Priority = value;
-    }
-
     public event QuickTickElapsedEventHandler? Elapsed
     {
         add => timer.Elapsed += value;

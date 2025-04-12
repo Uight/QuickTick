@@ -13,7 +13,6 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
     private bool autoReset;
     private bool isRunning;
     private long nextFireTime;
-    private ThreadPriority priority = ThreadPriority.AboveNormal;
 
     private Thread? completionThread;
     public event QuickTickElapsedEventHandler? Elapsed;
@@ -36,19 +35,6 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
 
             intervalMs = roundedInterval;
             intervalTicks = TimeSpan.FromMilliseconds(intervalMs).Ticks;
-        }
-    }
-
-    public ThreadPriority Priority
-    {
-        get => priority;
-        set
-        {
-            priority = value;
-            if (completionThread != null)
-            {
-                completionThread.Priority = priority;
-            }
         }
     }
 
@@ -95,7 +81,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         completionThread = new Thread(CompletionThreadLoop)
         {
             IsBackground = true,
-            Priority = priority // Allow to boost priority as it greatly increases timer precision
+            Priority = Thread.CurrentThread.Priority
         };
         completionThread.Start();
     }
