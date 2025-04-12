@@ -60,11 +60,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
 
     public QuickTickTimerImplementation(double interval)
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            throw new PlatformNotSupportedException("QuickTickLib only works on windows");
-        }
-
+        AutoReset = true;
         Interval = interval;
 
         iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);

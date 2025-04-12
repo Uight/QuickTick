@@ -37,7 +37,7 @@ for (int i = 0; i < 5; i++)
 
 var timerStopwatch = new Stopwatch();
 
-using var timer = QuickTickTimer.Create(5);
+using var timer = new QuickTickTimer(5);
 
 var timerTimingValues = new List<double>();
 

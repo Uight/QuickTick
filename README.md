@@ -3,13 +3,16 @@
 [![](https://img.shields.io/nuget/vpre/QuickTickLib?color=%23004880&label=NuGet&logo=NuGet)](https://www.nuget.org/packages/QuickTickLib/)
 [![GitHub](https://img.shields.io/github/license/uight/quicktick?color=%231281c0)](LICENSE)
 
-**QuickTick** is a high-precision timer library for **.NET 8.0 (Windows only)**, designed for scenarios where accurate and low-latency timing is required.
+**QuickTick** is a high-precision timer library for **.NET 8.0**, designed for scenarios where accurate and low-latency timing is required.
 
 It is inspired by discussions in the [.NET Runtime issue #67088](https://github.com/dotnet/runtime/issues/67088) and is based 
 on the **high-resolution timer** implemented by Microsoft's Go team, as detailed in [this blog post](https://devblogs.microsoft.com/go/high-resolution-timers-windows/).
 
-QuickTick leverages **IO Completion Ports (IOCP)** and **NT system calls** to achieve precise and efficient timing without needing to fiddle with the system clock rate.
+QuickTick leverages **IO Completion Ports (IOCP)** and **NT system calls** on windows to achieve precise and efficient timing without needing to fiddle with the system clock rate.
 It enables the creation of a `Timer` and the use of `Sleep` and `Delay` functions with precision below **15.6 ms**, ensuring accurate timing without impacting other parts of your application.
+QuickTick only really has an effect when used on a windows systems. On most other platforms supported by **.NET 8.0** you dont really need a more precise timer, as
+systems like linux dont have the **15.6 ms** limitation from the start. To allow the usage of QuickTick in cross-platform projects 
+it automatically falls back to the base .net functions on all platforms that are not Windows (10 or higher).
 
 ## QuickTickTimer Class
 
@@ -50,21 +53,21 @@ class Program
 
     private static void Timer_Elapsed(object sender, QuickTickElapsedEventArgs e)
     {
-        Console.WriteLine($"Timer elapsed! Scheduled: {e.ScheduledTime}, Actual: {e.SignalTime}");
+        Console.WriteLine($"Timer elapsed! Scheduled: {e.ScheduledTime:dd.MM.yyyy HH:mm:ss.fff}, Actual: {e.SignalTime:dd.MM.yyyy HH:mm:ss.fff}");
     }
 }
 
 // The example displays output like the following:
-    //Timer elapsed! Scheduled: 05.03.2025 18:52:21, Actual: 05.03.2025 18:52:21
-    //Timer elapsed! Scheduled: 05.03.2025 18:52:22, Actual: 05.03.2025 18:52:22
-    //Timer elapsed! Scheduled: 05.03.2025 18:52:22, Actual: 05.03.2025 18:52:22
-    //Timer elapsed! Scheduled: 05.03.2025 18:52:23, Actual: 05.03.2025 18:52:23
-    //Timer elapsed! Scheduled: 05.03.2025 18:52:23, Actual: 05.03.2025 18:52:23
-    //Timer elapsed! Scheduled: 05.03.2025 18:52:24, Actual: 05.03.2025 18:52:24
-    //Timer elapsed! Scheduled: 05.03.2025 18:52:24, Actual: 05.03.2025 18:52:24
-    //Timer elapsed! Scheduled: 05.03.2025 18:52:25, Actual: 05.03.2025 18:52:25
-    //Timer elapsed! Scheduled: 05.03.2025 18:52:25, Actual: 05.03.2025 18:52:25
-    //Timer elapsed! Scheduled: 05.03.2025 18:52:26, Actual: 05.03.2025 18:52:26
+    // Timer elapsed! Scheduled: 05.03.2025 18:52:21.120, Actual: 05.03.2025 18:52:21.121
+    // Timer elapsed! Scheduled: 05.03.2025 18:52:21.620, Actual: 05.03.2025 18:52:21.620
+    // Timer elapsed! Scheduled: 05.03.2025 18:52:22.120, Actual: 05.03.2025 18:52:22.120
+    // Timer elapsed! Scheduled: 05.03.2025 18:52:22.620, Actual: 05.03.2025 18:52:22.622
+    // Timer elapsed! Scheduled: 05.03.2025 18:52:23.120, Actual: 05.03.2025 18:52:23.121
+    // Timer elapsed! Scheduled: 05.03.2025 18:52:23.620, Actual: 05.03.2025 18:52:23.620
+    // Timer elapsed! Scheduled: 05.03.2025 18:52:24.120, Actual: 05.03.2025 18:52:24.121
+    // Timer elapsed! Scheduled: 05.03.2025 18:52:24.620, Actual: 05.03.2025 18:52:24.620
+    // Timer elapsed! Scheduled: 05.03.2025 18:52:25.120, Actual: 05.03.2025 18:52:25.120
+    // Timer elapsed! Scheduled: 05.03.2025 18:52:25.620, Actual: 05.03.2025 18:52:25.621
 ```
 
 ### Remarks
@@ -75,10 +78,10 @@ windows timer resolution of 15.6ms without needing to set the system clock rate 
 The timer therefore has no influence on the remaining program and calls like `Thread.Sleep` or `Task.Delay` are not affected.
 
 > [!IMPORTANT]
-> The `QuickTickTimer` class is only available on Windows. It is not compatible with other platforms.
-> If cross-platform compatibility is required, consider using one of the built-in .net timers instead.
-> For non windows platforms the built-in timers deliver a relatively high precision as well, as they are not
-> based on the windows timer system and its default timing of ~15.6ms.
+> The `QuickTickTimer` class is able to be used cross-platform. However on systems that are not windows it falls back to
+> built in .net functions. Also it falls back to the built in .net function if it runs under a windows earlier that Windows 10 or equivilantly Windows Server 2016.
+> For non windows platforms the built-in timers deliver a relatively high precision, as they are not
+> based on the windows timer system and its default timing of ~15.6ms and therefor no specific implementation is needed.
 
 > [!IMPORTANT]
 > The elapsed event is fired on a completion thread. This thread is not the same as the thread that started the timer.
@@ -114,7 +117,6 @@ Initializes a new instance of the `QuickTickTimer` class with the specified inte
 ##### Exceptions
 
 - `ArgumentOutOfRangeException`: Thrown if `interval` is less than or equal to zero.
-- `PlatformNotSupportedException`: Thrown if the platform is not Windows.
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
 
 #### QuickTickTimer(TimeSpan interval)
@@ -132,7 +134,6 @@ Initializes a new instance of the `QuickTickTimer` class with the specified inte
 ##### Exceptions
 
 - `ArgumentOutOfRangeException`: Thrown if `interval` is less than or equal to zero.
-- `PlatformNotSupportedException`: Thrown if the platform is not Windows.
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
 
 ### Properties
@@ -155,7 +156,7 @@ Gets or sets the time, in milliseconds, between timer events.
 public bool AutoReset { get; set; }
 ```
 
-Gets or sets whether the timer should restart after each elapsed event.
+Gets or sets whether the timer should restart after each elapsed event. Default is true.
 
 - `true`: The timer restarts automatically.
 - `false`: The timer stops after firing once.
@@ -211,8 +212,8 @@ Occurs when the timer interval has elapsed.
 ##### Event Arguments
 
 - `QuickTickElapsedEventArgs`: Contains information about the scheduled and actual firing times.
-    - **`SignalTime`** (`DateTime`): The actual time when the event was triggered.
-    - **`ScheduledTime`** (`DateTime`): The originally scheduled time for the timer event.  
+    - **`SignalTime`** (`DateTime`): The actual time when the event was triggered. The time is a UTC-Timestamp.
+    - **`ScheduledTime`** (`DateTime`): The originally scheduled time for the timer event. The time is a UTC-Timestamp.  
 
 ## QuickTickTiming Class
 
@@ -221,6 +222,7 @@ Occurs when the timer interval has elapsed.
 Namespace: QuickTickLib
 
 Provides sleep and delay functions with high precision using IO Completion Ports (IOCP) and `NtAssociateWaitCompletionPacket` for precise timing events under windows.
+Running under different platforms it just falls back to the built in .net functions.
 
 ```csharp
 public static class QuickTickTiming
@@ -242,7 +244,6 @@ will in this situation.
 
 ##### Exceptions
 
-- `PlatformNotSupportedException`: Thrown if the platform is not Windows.
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
 
 #### Delay()
@@ -260,5 +261,4 @@ Asynchronously blocks the current thread for the specified duration. It allows c
 ##### Exceptions
 
 - `ArgumentOutOfRangeException`: Thrown if `interval` or `timeSpan` is less than or equal to zero.
-- `PlatformNotSupportedException`: Thrown if the platform is not Windows.
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.

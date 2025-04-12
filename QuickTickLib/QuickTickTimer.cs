@@ -1,17 +1,42 @@
-﻿using System.Runtime.Versioning;
+﻿namespace QuickTickLib;
 
-namespace QuickTickLib;
-
-[SupportedOSPlatform("windows")]
-public static class QuickTickTimer
+public sealed class QuickTickTimer : IQuickTickTimer
 {
-    public static IQuickTickTimer Create(double interval)
+    private readonly IQuickTickTimer timer;
+
+    public QuickTickTimer(double interval)
     {
-        return new QuickTickTimerImplementation(interval);
+        var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
+        timer = isQuickTickSupported ? new QuickTickTimerImplementation(interval) : new QuickTickTimerFallback(interval);
     }
 
-    public static IQuickTickTimer Create(TimeSpan interval)
+    public QuickTickTimer(TimeSpan interval) : this(interval.TotalMilliseconds) { }
+
+    public double Interval
     {
-        return new QuickTickTimerImplementation(interval.TotalMilliseconds);
+        get => timer.Interval;
+        set => timer.Interval = value;
     }
+
+    public bool AutoReset
+    {
+        get => timer.AutoReset;
+        set => timer.AutoReset = value;
+    }
+
+    public ThreadPriority Priority
+    {
+        get => timer.Priority;
+        set => timer.Priority = value;
+    }
+
+    public event QuickTickElapsedEventHandler? Elapsed
+    {
+        add => timer.Elapsed += value;
+        remove => timer.Elapsed -= value;
+    }
+
+    public void Start() => timer.Start();
+    public void Stop() => timer.Stop();
+    public void Dispose() => timer.Dispose();
 }

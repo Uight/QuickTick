@@ -1,16 +1,22 @@
 ﻿using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
 
 namespace QuickTickLib;
 
-[SupportedOSPlatform("windows")]
 public static class QuickTickTiming
 {
     public static async Task Delay(int milliseconds, CancellationToken cancellationToken = default)
     {
+        var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
+
+        if (!isQuickTickSupported)
+        {
+            await Task.Delay(milliseconds, cancellationToken);
+            return;
+        }
+
         var tcs = new TaskCompletionSource<bool>();
 
-        using (var timer = QuickTickTimer.Create(milliseconds))
+        using (var timer = new QuickTickTimer(milliseconds))
         {
             timer.AutoReset = false;
             timer.Elapsed += (object? _, QuickTickElapsedEventArgs _) => tcs.TrySetResult(true);
@@ -38,12 +44,9 @@ public static class QuickTickTiming
 
     public static void Sleep(int sleepTimeMs)
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            throw new PlatformNotSupportedException("QuickTickLib only works on windows");
-        }
+        var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
 
-        if (sleepTimeMs <= 0)
+        if (sleepTimeMs <= 0 || !isQuickTickSupported)
         {
             Thread.Sleep(sleepTimeMs);
             return;
