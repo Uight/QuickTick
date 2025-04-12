@@ -93,8 +93,10 @@ This class implements the `IDisposable` interface. When you are finished using t
 > [!Note]
 > The actual timing accuracy of the timer is mostly based on the systems thread scheduler.
 > On average the system takes around 300µs to signal the timer thread after the interval finished.
-> This can change based on the system load and other factors like energy saving settings.
-> To improve the timing accuracy of the timer you can set the `Priority` property to `ThreadPriority.Highest`.
+> On Windows, the thread that waits for the timer and handles the event code runs with the same priority as the thread that created the timer.
+> This is normally fine and doesn’t need to be increased. Raising the priority is only recommended if the system is under heavy load and timing accuracy is noticeably affected.
+> A better solution to inaccurate timing is checking your windows power settings and especially the core parking feature.
+> Core parking can drastically worsen the times the timer thread needs to wake up when beaing signaled. You might want to turn that off.
 
 The timer tries to keep the average interval as close to the specified interval as possible. 
 But the actual interval can vary based on the system load and other factors. 
@@ -160,14 +162,6 @@ Gets or sets whether the timer should restart after each elapsed event. Default 
 
 - `true`: The timer restarts automatically.
 - `false`: The timer stops after firing once.
-
-#### Priority
-
-```csharp
-public ThreadPriority Priority { get; set; }
-```
-
-Gets or sets the priority of the completion thread handling timer events.
 
 ### Methods
 
