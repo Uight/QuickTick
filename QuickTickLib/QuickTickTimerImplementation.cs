@@ -27,14 +27,13 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
                 throw new ArgumentOutOfRangeException("Interval must be between 1 and int.MaxValue");
             }
 
-            double roundedInterval = Math.Ceiling(value);
-            if (roundedInterval > int.MaxValue || roundedInterval <= 0)
+            if (value > int.MaxValue || value <= 0)
             {
                 throw new ArgumentOutOfRangeException("Interval must be between 1 and int.MaxValue");
             }
 
-            intervalMs = roundedInterval;
-            intervalTicks = TimeSpan.FromMilliseconds(intervalMs).Ticks;
+            intervalMs = value;
+            intervalTicks = (long)(intervalMs * TimeSpan.TicksPerMillisecond);
         }
     }
 
