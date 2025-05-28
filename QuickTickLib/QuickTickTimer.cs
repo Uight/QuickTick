@@ -4,13 +4,15 @@ public sealed class QuickTickTimer : IQuickTickTimer
 {
     private readonly IQuickTickTimer timer;
 
-    public QuickTickTimer(double interval)
+    public QuickTickTimer(double interval, QuickTickElapsedEventHandler? elapsed = null, bool throwIfFallback = false)
     {
         var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
+        if (!isQuickTickSupported && throwIfFallback) throw new PlatformNotSupportedException();
         timer = isQuickTickSupported ? new QuickTickTimerImplementation(interval) : new QuickTickTimerFallback(interval);
+        Elapsed += elapsed;
     }
 
-    public QuickTickTimer(TimeSpan interval) : this(interval.TotalMilliseconds) { }
+    public QuickTickTimer(TimeSpan interval, QuickTickElapsedEventHandler? elapsed = null, bool throwIfFallback = false) : this(interval.TotalMilliseconds, elapsed, throwIfFallback) { }
 
     public double Interval
     {
