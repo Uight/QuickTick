@@ -22,14 +22,9 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         get => intervalMs;
         set
         {
-            if (value <= 0)
+            if (value < 1 || value > int.MaxValue)
             {
-                throw new ArgumentOutOfRangeException("Interval must be between 1 and int.MaxValue");
-            }
-
-            if (value > int.MaxValue || value <= 0)
-            {
-                throw new ArgumentOutOfRangeException("Interval must be between 1 and int.MaxValue");
+                throw new ArgumentOutOfRangeException(nameof(Interval), "Interval must be between 1 and int.MaxValue");
             }
 
             intervalMs = value;
