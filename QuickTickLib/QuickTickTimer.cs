@@ -3,14 +3,17 @@
 public sealed class QuickTickTimer : IQuickTickTimer
 {
     private readonly IQuickTickTimer timer;
+    private readonly bool isQuickTickUsed;
 
     public QuickTickTimer(double interval)
     {
-        var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
-        timer = isQuickTickSupported ? new QuickTickTimerImplementation(interval) : new QuickTickTimerFallback(interval);
+        isQuickTickUsed = QuickTickHelper.PlatformSupportsQuickTick();
+        timer = isQuickTickUsed ? new QuickTickTimerImplementation(interval) : new QuickTickTimerFallback(interval);
     }
 
     public QuickTickTimer(TimeSpan interval) : this(interval.TotalMilliseconds) { }
+
+    public bool IsQuickTickUsed => isQuickTickUsed;
 
     public double Interval
     {

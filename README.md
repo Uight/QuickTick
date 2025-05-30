@@ -140,6 +140,17 @@ Initializes a new instance of the `QuickTickTimer` class with the specified inte
 
 ### Properties
 
+#### IsQuickTickUsed
+
+```csharp
+public bool IsQuickTickUsed { get; }
+```
+
+Gets a value indicating whether the high-resolution QuickTick implementation is being used.
+
+When true, the timer is backed by the QuickTickTimerImplementation, which offers higher precision and lower latency on windows.
+When false, the platform does not support QuickTick, and the timer falls back to the QuickTickTimerFallback implementation.
+
 #### Interval
 
 ```csharp
