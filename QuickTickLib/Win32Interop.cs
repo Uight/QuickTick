@@ -173,6 +173,29 @@ internal partial class Win32Interop
         IntPtr WaitCompletionPacketHandle, // Handle to a wait completion packet
         [MarshalAs(UnmanagedType.Bool)] bool RemoveSignaledPacket // Whether to cancel a packet from the IO completion queue
     );
+
+    [DllImport("ntdll.dll")]
+    private static extern int RtlGetVersion(ref OSVERSIONINFOEX versionInfo);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct OSVERSIONINFOEX
+    {
+        public int dwOSVersionInfoSize;
+        public int dwMajorVersion;
+        public int dwMinorVersion;
+        public int dwBuildNumber;
+        public int dwPlatformId;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+        public string szCSDVersion;
+    }
+
+    public static Version GetRealWindowsVersion()
+    {
+        var osVersionInfo = new OSVERSIONINFOEX();
+        osVersionInfo.dwOSVersionInfoSize = Marshal.SizeOf(osVersionInfo);
+        _ = RtlGetVersion(ref osVersionInfo);
+        return new Version(osVersionInfo.dwMajorVersion, osVersionInfo.dwMinorVersion, osVersionInfo.dwBuildNumber);
+    }
 #endif
 
     [Flags]

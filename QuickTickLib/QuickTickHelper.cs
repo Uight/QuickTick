@@ -14,7 +14,15 @@ internal static class QuickTickHelper
             return false;
         }
 
-        var version = Environment.OSVersion.Version;
+        Version version;
+
+#if NET
+        version = Environment.OSVersion.Version;
+#else
+        // Done like this to avoid needing a manifest file specifying Windows 10 as supported OS.
+        // Environment.OSVersion.Version would return MajorVersion 6 in .NET Framework without manifest file.
+        version = Win32Interop.GetRealWindowsVersion();
+#endif
 
         // Windows 10 / Server 2016+ (NT 10.0) should support all needed functions
         if (version.Major >= 10)
