@@ -91,16 +91,20 @@ The timer therefore has no influence on the remaining program and calls like `Th
 This class implements the `IDisposable` interface. When you are finished using the timer, you should dispose of it to release all associated resources.
 
 > [!Note]
-> The actual timing accuracy of the timer is mostly based on the systems thread scheduler.
+> The actual timing accuracy of the timer is mostly based on the systems thread scheduler aswell as the systems kernel timing.
 > On average the system takes around 300µs to signal the timer thread after the interval finished.
 > On Windows, the thread that waits for the timer and handles the event code runs with the same priority as the thread that created the timer.
 > This is normally fine and doesn’t need to be increased. Raising the priority is only recommended if the system is under heavy load and timing accuracy is noticeably affected.
 > A better solution to inaccurate timing is checking your windows power settings and especially the core parking feature.
 > Core parking can drastically worsen the times the timer thread needs to wake up when beaing signaled. You might want to turn that off.
 
-The timer tries to keep the average interval as close to the specified interval as possible. 
-But the actual interval can vary based on the system load and other factors. 
-Typically, the timer is within 0.6ms of the specified interval, but it can be off by several milliseconds in some cases.
+> [!Note]
+> The `QuickTickTimerImplementation` supports sub-millisecond intervals; however, the maximum effective resolution is approximately **0.5 milliseconds** due to Windows kernel timer limitations.  
+> On the test machine, the minimum observed interval was around **0.518 ms**.
+> You can still specify intervals that are not exact multiples of 0.5 ms — for example, **16.666... ms** for a 60 Hz timer — and the implementation will attempt to maintain that average over time.
+>
+> The timer strives to keep the **average interval** as close as possible to the requested value, but actual intervals may vary slightly depending on system load and other conditions.  
+> Typically, deviations are within **±0.6 ms**, though in some cases they may be larger.
 
 ### Constructors
 
@@ -114,11 +118,13 @@ Initializes a new instance of the `QuickTickTimer` class with the specified inte
 
 ##### Parameters
 
-- `interval` (Double): The timer interval in milliseconds. Must be greater than zero.
+- `interval` (Double): The timer interval in milliseconds.
 
 ##### Exceptions
 
-- `ArgumentOutOfRangeException`: Thrown if `interval` is less than or equal to zero.
+- `ArgumentOutOfRangeException`: Thrown if `interval` is outside the valid range:
+    - For QuickTick: must be ≥ 0.5 milliseconds and ≤ int.MaxValue milliseconds
+    - For Fallback: must be ≥ 1 millisecond and ≤ int.MaxValue milliseconds
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
 
 #### QuickTickTimer(TimeSpan interval)
@@ -128,6 +134,8 @@ public QuickTickTimer(TimeSpan interval)
 ```
 
 Initializes a new instance of the `QuickTickTimer` class with the specified interval as a `TimeSpan`.
+Be aware that using TimeSpan.FromMilliseconds() allready rounds to full milliseconds so if you want
+tp create a timer with sub millisecond timing you would need to create the timeSpan with TimeSpan.FromMicroseconds()
 
 ##### Parameters
 
@@ -135,7 +143,9 @@ Initializes a new instance of the `QuickTickTimer` class with the specified inte
 
 ##### Exceptions
 
-- `ArgumentOutOfRangeException`: Thrown if `interval` is less than or equal to zero.
+- `ArgumentOutOfRangeException`: Thrown if `interval` is outside the valid range:
+    - For QuickTick: must be ≥ 0.5 milliseconds and ≤ int.MaxValue milliseconds
+    - For Fallback: must be ≥ 1 millisecond and ≤ int.MaxValue milliseconds
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
 
 ### Properties
@@ -161,7 +171,9 @@ Gets or sets the time, in milliseconds, between timer events.
 
 ##### Exceptions
 
-- `ArgumentOutOfRangeException`: Thrown if the value is less than or equal to zero.
+- `ArgumentOutOfRangeException`: Thrown if value is outside the valid range:
+    - For QuickTick: must be ≥ 0.5 milliseconds and ≤ int.MaxValue milliseconds
+    - For Fallback: must be ≥ 1 millisecond and ≤ int.MaxValue milliseconds
 
 #### AutoReset
 
