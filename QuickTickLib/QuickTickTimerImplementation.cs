@@ -15,7 +15,13 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
     private long nextFireTime;
 
     private Thread? completionThread;
-    public event QuickTickElapsedEventHandler? Elapsed;
+    private QuickTickElapsedEventHandler? elapsed;
+
+    public event QuickTickElapsedEventHandler? Elapsed
+    {
+        add => elapsed += value;
+        remove => elapsed -= value;
+    }
 
     public double Interval
     {
@@ -123,6 +129,8 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         {
             Win32Interop.CloseHandle(timerHandle);
         }
+
+        elapsed = null;
     }
 
     private void SetTimer()
@@ -170,10 +178,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
                         }
                     }
 
-                    if (Elapsed is not null)
-                    {
-                        Elapsed(this, elapsedEventArgs);
-                    }
+                    elapsed?.Invoke(this, elapsedEventArgs);
                 }
             }
         }

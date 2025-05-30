@@ -14,7 +14,7 @@ namespace QuickTestProjectNetFramework
             timer.Elapsed += Timer_Elapsed;
             timer.Start();
 
-            Thread.Sleep(1000); // Run for 5 seconds
+            Thread.Sleep(1000);
             timer.Stop();
         }
 
