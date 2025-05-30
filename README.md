@@ -3,7 +3,7 @@
 [![](https://img.shields.io/nuget/vpre/QuickTickLib?color=%23004880&label=NuGet&logo=NuGet)](https://www.nuget.org/packages/QuickTickLib/)
 [![GitHub](https://img.shields.io/github/license/uight/quicktick?color=%231281c0)](LICENSE)
 
-**QuickTick** is a high-precision timer library for **.NET 8.0**, designed for scenarios where accurate and low-latency timing is required.
+**QuickTick** is a high-precision timer library for **.NET 8.0** and **.NET Framework 4.8**, designed for scenarios where accurate and low-latency timing is required.
 
 It is inspired by discussions in the [.NET Runtime issue #67088](https://github.com/dotnet/runtime/issues/67088) and is based 
 on the **high-resolution timer** implemented by Microsoft's Go team, as detailed in [this blog post](https://devblogs.microsoft.com/go/high-resolution-timers-windows/).
