@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuickTestProject", "QuickTe
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuickTickLib", "QuickTickLib\QuickTickLib.csproj", "{B3B62613-06BD-45B4-95F0-1F0076D1B41E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuickTestProjectNetFramework", "QuickTestProjectNetFramework\QuickTestProjectNetFramework.csproj", "{403A72CA-519F-E2D4-5CE9-F668ACDC2C0E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{B3B62613-06BD-45B4-95F0-1F0076D1B41E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B3B62613-06BD-45B4-95F0-1F0076D1B41E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B3B62613-06BD-45B4-95F0-1F0076D1B41E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{403A72CA-519F-E2D4-5CE9-F668ACDC2C0E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{403A72CA-519F-E2D4-5CE9-F668ACDC2C0E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{403A72CA-519F-E2D4-5CE9-F668ACDC2C0E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{403A72CA-519F-E2D4-5CE9-F668ACDC2C0E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

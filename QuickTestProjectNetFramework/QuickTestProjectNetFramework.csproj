@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>QuickTestProjectNetFramework</RootNamespace>
+    <AssemblyName>QuickTestProjectNetFramework</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\QuickTickLib\QuickTickLib.csproj" />
+  </ItemGroup>
+</Project>
