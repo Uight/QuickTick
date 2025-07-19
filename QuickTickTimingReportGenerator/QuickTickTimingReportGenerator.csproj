@@ -11,6 +11,8 @@
   <ItemGroup>
     <PackageReference Include="QuestPDF" Version="2025.7.0" />
     <PackageReference Include="SkiaSharp" Version="3.119.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.0" />
   </ItemGroup>
 
   <ItemGroup>
