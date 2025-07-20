@@ -18,13 +18,19 @@ class Program
 
         foreach (var duration in durations)
         {
-            const int iterations = 500;
-            Console.WriteLine($"Running QuickTick Delay test for {iterations} iterations with timing {duration}");
-            var samples = await RunQuickTickDelayTest(duration, iterations);
-            allResults.Add(new TimingTestResult($"Delay {duration}ms", samples));
+            const int iterations = 1000;
 
-            var imgPath = Path.Combine(reportDir, $"histogram_{duration}ms.png");
-            DrawHistogram(samples, imgPath, duration);
+            // QuickTick Delay
+            Console.WriteLine($"Running QuickTick Delay test for {iterations} iterations with {duration}ms...");
+            var delaySamples = await RunQuickTickDelayTest(duration, iterations);
+            allResults.Add(new TimingTestResult($"QuickTick Delay {duration}ms", delaySamples));
+            DrawHistogram(delaySamples, Path.Combine(reportDir, $"histogram_QuickTickDelay_{duration}ms.png"), duration);
+
+            // QuickTick Timer
+            Console.WriteLine($"Running QuickTick Timer test for {iterations} ticks with {duration}ms...");
+            var timerSamples = await RunQuickTickTimerTest(duration, iterations);
+            allResults.Add(new TimingTestResult($"QuickTick Timer {duration}ms", timerSamples));
+            DrawHistogram(timerSamples, Path.Combine(reportDir, $"histogram_QuickTickTimer_{duration}ms.png"), duration);
         }
 
         var systemInfo = GetSystemInfo();
@@ -56,6 +62,55 @@ class Program
 
         Console.WriteLine("Progress: 100% (done)");
         return samples;
+    }
+
+    static Task<List<double>> RunQuickTickTimerTest(double intervalMs, int eventsToCapture)
+    {
+        var tcs = new TaskCompletionSource<List<double>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var samples = new List<double>();
+        var counter = 0;
+        var last = Stopwatch.GetTimestamp();
+        var stopwatchFreq = Stopwatch.Frequency;
+
+        var timer = new QuickTickTimer(intervalMs)
+        {
+            AutoReset = true
+        };
+
+        timer.Elapsed += (_, _) =>
+        {
+            var now = Stopwatch.GetTimestamp();
+            var delta = (now - last) * 1000.0 / stopwatchFreq;
+            last = now;
+
+            // Ignore the first interval as it might be delayed from Start()
+            if (counter > 0)
+            {
+                samples.Add(delta);
+            }
+
+            if (counter == eventsToCapture)
+            {
+                try
+                {
+                    Task.Run(() =>
+                    {
+                        timer.Stop();
+                        timer.Dispose();
+                        tcs.SetResult(samples);
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex);
+                }
+            }
+
+            counter++;         
+        };
+
+        timer.Start();
+        return tcs.Task;
     }
 
     static void DrawHistogram(List<double> samples, string outputPath, double targetMs)
@@ -210,18 +265,35 @@ class Program
                     col.Item().Text("System Information:").Bold();
                     col.Item().Text(systemInfo);
 
-                    foreach (var result in results)
+                    var grouped = results.GroupBy(r => r.Label.Split(' ')[^1].Replace("ms", ""));
+
+                    foreach (var group in grouped)
                     {
-                        var (min, max, mean, stddev) = GetStats(result.Samples);
+                        var delay = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Delay"));
+                        var timer = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Timer"));
 
                         col.Item().PageBreak();
-                        col.Item().Text(result.Label).FontSize(16).Bold();
-                        col.Item().Text($"Samples: {result.Samples.Count}, Min: {min:F3} ms, Max: {max:F3} ms, Mean: {mean:F3} ms, StdDev: {stddev:F3} ms");
 
-                        var imgPath = Path.Combine(reportDir, $"histogram_{result.Label.Replace("Delay ", string.Empty).Replace("ms", string.Empty)}ms.png");
-                        if (File.Exists(imgPath))
+                        if (delay != null)
                         {
-                            col.Item().Image(Image.FromFile(imgPath)).FitWidth();
+                            var (min, max, mean, stddev) = GetStats(delay.Samples);
+                            col.Item().Text(delay.Label).FontSize(16).Bold();
+                            col.Item().Text($"Samples: {delay.Samples.Count}, Min: {min:F3} ms, Max: {max:F3} ms, Mean: {mean:F3} ms, StdDev: {stddev:F3} ms");
+
+                            var imgPath = Path.Combine(reportDir, $"histogram_QuickTickDelay_{group.Key}ms.png");
+                            if (File.Exists(imgPath))
+                                col.Item().Image(Image.FromFile(imgPath)).FitWidth();
+                        }
+
+                        if (timer != null)
+                        {
+                            var (min, max, mean, stddev) = GetStats(timer.Samples);
+                            col.Item().Text(timer.Label).FontSize(16).Bold();
+                            col.Item().Text($"Samples: {timer.Samples.Count}, Min: {min:F3} ms, Max: {max:F3} ms, Mean: {mean:F3} ms, StdDev: {stddev:F3} ms");
+
+                            var imgPath = Path.Combine(reportDir, $"histogram_QuickTickTimer_{group.Key}ms.png");
+                            if (File.Exists(imgPath))
+                                col.Item().Image(Image.FromFile(imgPath)).FitWidth();
                         }
                     }
                 });
