@@ -18,7 +18,9 @@ class Program
 
         foreach (var duration in durations)
         {
-            var samples = await RunDelayTest(duration, 500);
+            const int iterations = 500;
+            Console.WriteLine($"Running QuickTick Delay test for {iterations} iterations with timing {duration}");
+            var samples = await RunQuickTickDelayTest(duration, iterations);
             allResults.Add(new TimingTestResult($"Delay {duration}ms", samples));
 
             var imgPath = Path.Combine(reportDir, $"histogram_{duration}ms.png");
@@ -34,16 +36,25 @@ class Program
         Console.WriteLine($"Report generated at: {pdfPath}");
     }
 
-    static async Task<List<double>> RunDelayTest(int durationMs, int iterations)
+    static async Task<List<double>> RunQuickTickDelayTest(int durationMs, int iterations)
     {
         var samples = new List<double>();
+        int progressInterval = Math.Max(1, iterations / 10);
+
         for (int i = 0; i < iterations; i++)
         {
             var sw = Stopwatch.StartNew();
             await QuickTickTiming.Delay(durationMs);
             sw.Stop();
             samples.Add(sw.Elapsed.TotalMilliseconds);
+
+            if (i % progressInterval == 0)
+            {
+                Console.WriteLine($"Progress: {i * 100 / iterations}% ({i}/{iterations})");
+            }
         }
+
+        Console.WriteLine("Progress: 100% (done)");
         return samples;
     }
 
