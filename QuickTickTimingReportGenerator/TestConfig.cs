@@ -9,6 +9,7 @@ public class TestConfig
     public ThreadPriority ThreadPriority { get; set; } = ThreadPriority.Normal;
     public List<int> IntervalsMs { get; set; } = [];
     public int TimeInSecondsPerTest { get; set; } = 10;
+    public bool IncludeCompareToHiResTimer { get; set; } = false;
 
     public static TestConfig LoadConfig(string path)
     {

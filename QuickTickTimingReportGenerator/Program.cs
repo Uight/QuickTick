@@ -1,4 +1,5 @@
-﻿using QuestPDF.Fluent;
+﻿using KGySoft.CoreLibraries;
+using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using QuickTickLib;
 using SkiaSharp;
@@ -24,17 +25,50 @@ class Program
         {
             var iterations = config.TimeInSecondsPerTest * 1000 / duration;
 
+            Thread.Sleep(500);
             // QuickTick Delay
             Console.WriteLine($"Running QuickTick Delay test for {iterations} iterations with {duration}ms...");
-            var delaySamples = await RunQuickTickDelayTest(duration, iterations);
-            allResults.Add(new TimingTestResult($"QuickTick Delay {duration}ms", delaySamples));
-            DrawHistogram(delaySamples, Path.Combine(reportDir, $"histogram_QuickTickDelay_{duration}ms.png"), duration);
 
+            var delayMonitor = new CPUMonitor();
+            delayMonitor.Start();
+            var delaySamples = await RunQuickTickDelayTest(duration, iterations);
+            delayMonitor.Stop();
+            var delayCpuUsage = delayMonitor.GetAverageCpuUsage();
+            delayMonitor.Dispose();    
+            
+            allResults.Add(new TimingTestResult($"QuickTick Delay {duration}ms", delaySamples));
+            DrawHistogram(delaySamples, Path.Combine(reportDir, $"histogram_QuickTickDelay_{duration}ms.png"), duration, delayCpuUsage);
+
+            Thread.Sleep(500);
             // QuickTick Timer
             Console.WriteLine($"Running QuickTick Timer test for {iterations} ticks with {duration}ms...");
+
+            var timerMonitor = new CPUMonitor();
+            timerMonitor.Start();
             var timerSamples = await RunQuickTickTimerTest(duration, iterations);
+            timerMonitor.Stop();
+            var timerCpuUsage = timerMonitor.GetAverageCpuUsage();
+            timerMonitor.Dispose();     
+            
             allResults.Add(new TimingTestResult($"QuickTick Timer {duration}ms", timerSamples));
-            DrawHistogram(timerSamples, Path.Combine(reportDir, $"histogram_QuickTickTimer_{duration}ms.png"), duration);
+            DrawHistogram(timerSamples, Path.Combine(reportDir, $"histogram_QuickTickTimer_{duration}ms.png"), duration, timerCpuUsage);
+
+            if (config.IncludeCompareToHiResTimer)
+            {
+                Thread.Sleep(500);
+                // HiResTimer test
+                Console.WriteLine($"Running HiResTimer test for {iterations} ticks with {duration}ms...");
+
+                var hiResTimerMonitor = new CPUMonitor();
+                hiResTimerMonitor.Start();
+                var hiResSamples = await RunHiResTimerTest(duration, iterations);
+                hiResTimerMonitor.Stop();
+                var hiResTimerCpuUsage = hiResTimerMonitor.GetAverageCpuUsage();
+                hiResTimerMonitor.Dispose();
+
+                allResults.Add(new TimingTestResult($"HiResTimer {duration}ms", hiResSamples));
+                DrawHistogram(hiResSamples, Path.Combine(reportDir, $"histogram_HiResTimer_{duration}ms.png"), duration, hiResTimerCpuUsage);
+            }
         }
 
         var systemInfo = GetSystemInfo(config);
@@ -44,6 +78,44 @@ class Program
         GeneratePdfReport(pdfPath, allResults, reportDir, systemInfo);
 
         Console.WriteLine($"Report generated at: {pdfPath}");
+    }
+
+    static Task<List<double>> RunHiResTimerTest(double intervalMs, int eventsToCapture)
+    {
+        var tcs = new TaskCompletionSource<List<double>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var samples = new List<double>();
+        int counter = 0;
+        var last = Stopwatch.GetTimestamp();
+        var freq = Stopwatch.Frequency;
+        int progressInterval = Math.Max(1, eventsToCapture / 10);
+
+        var timer = new HiResTimer { Interval = (float)intervalMs, Enabled = false };
+
+        timer.Elapsed += (_, __) =>
+        {
+            var now = Stopwatch.GetTimestamp();
+            var delta = (now - last) * 1000.0 / freq;
+            last = now;
+
+            if (counter > 0) samples.Add(delta);
+
+            if (counter == eventsToCapture)
+            {
+                Task.Run(() =>
+                {
+                    timer.Stop();
+                    tcs.SetResult(samples);
+                });
+            }
+
+            if (counter % progressInterval == 0)
+                Console.WriteLine($"HiResTimer Progress: {counter * 100 / eventsToCapture}%");
+
+            counter++;
+        };
+
+        timer.Start();
+        return tcs.Task;
     }
 
     static async Task<List<double>> RunQuickTickDelayTest(int durationMs, int iterations)
@@ -124,7 +196,7 @@ class Program
         return tcs.Task;
     }
 
-    static void DrawHistogram(List<double> samples, string outputPath, double targetMs)
+    static void DrawHistogram(List<double> samples, string outputPath, double targetMs, double avgCpuUsage)
     {
         int width = 800, height = 500;
         int marginLeft = 60, marginBottom = 40, marginTop = 30;
@@ -142,6 +214,7 @@ class Program
         var borderPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1, Style = SKPaintStyle.Stroke };
         var targetLinePaint = new SKPaint { Color = SKColors.Green, StrokeWidth = 3, IsAntialias = true };
         var gaussianPaint = new SKPaint { Color = SKColors.DarkRed, StrokeWidth = 2, IsAntialias = true, Style = SKPaintStyle.Stroke };
+        var avgLinePaint = new SKPaint { Color = SKColors.OrangeRed, StrokeWidth = 2, PathEffect = SKPathEffect.CreateDash(new float[] { 6, 4 }, 0) };
 
         // --- Fixed 0.1 ms bin width ---
         double binSize = 0.1;
@@ -238,6 +311,10 @@ class Program
 
         canvas.DrawPath(path, gaussianPaint);
 
+        // --- Draw average CPU usage legend ---
+        string legend = $"Avg CPU: {avgCpuUsage:F2}%";
+        canvas.DrawText(legend, width - 200, marginTop + 10, font, textPaint);
+
         // Save image
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
@@ -317,6 +394,7 @@ class Program
                     {
                         var delay = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Delay"));
                         var timer = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Timer"));
+                        var hirestimer = group.FirstOrDefault(r => r.Label.StartsWith("HiResTimer"));
 
                         col.Item().PageBreak();
 
@@ -338,6 +416,17 @@ class Program
                             col.Item().Text($"Samples: {timer.Samples.Count}, Min: {min:F3} ms, Max: {max:F3} ms, Mean: {mean:F3} ms, StdDev: {stddev:F3} ms");
 
                             var imgPath = Path.Combine(reportDir, $"histogram_QuickTickTimer_{group.Key}ms.png");
+                            if (File.Exists(imgPath))
+                                col.Item().Image(Image.FromFile(imgPath)).FitWidth();
+                        }
+
+                        if (hirestimer != null)
+                        {
+                            var (min, max, mean, stddev) = GetStats(hirestimer.Samples);
+                            col.Item().Text(hirestimer.Label).FontSize(16).Bold();
+                            col.Item().Text($"Samples: {hirestimer.Samples.Count}, Min: {min:F3} ms, Max: {max:F3} ms, Mean: {mean:F3} ms, StdDev: {stddev:F3} ms");
+
+                            var imgPath = Path.Combine(reportDir, $"histogram_HiResTimer_{group.Key}ms.png");
                             if (File.Exists(imgPath))
                                 col.Item().Image(Image.FromFile(imgPath)).FitWidth();
                         }
