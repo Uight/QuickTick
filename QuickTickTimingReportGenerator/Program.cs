@@ -5,6 +5,8 @@ using SkiaSharp;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
+namespace QuickTickTimingReportGenerator;
+
 class Program
 {
     static async Task Main(string[] args)
@@ -13,12 +15,14 @@ class Program
         Directory.CreateDirectory(reportDir);
         QuestPDF.Settings.License = LicenseType.Community;
 
-        var allResults = new List<TimingTestResult>();
-        var durations = new[] { 1, 5, 50 };
+        var config = TestConfig.LoadConfig("config.json");
+        Thread.CurrentThread.Priority = config.ThreadPriority;
 
-        foreach (var duration in durations)
+        var allResults = new List<TimingTestResult>();
+
+        foreach (var duration in config.IntervalsMs)
         {
-            const int iterations = 1000;
+            var iterations = config.TimeInSecondsPerTest * 1000 / duration;
 
             // QuickTick Delay
             Console.WriteLine($"Running QuickTick Delay test for {iterations} iterations with {duration}ms...");
@@ -33,7 +37,7 @@ class Program
             DrawHistogram(timerSamples, Path.Combine(reportDir, $"histogram_QuickTickTimer_{duration}ms.png"), duration);
         }
 
-        var systemInfo = GetSystemInfo();
+        var systemInfo = GetSystemInfo(config);
         File.WriteAllText(Path.Combine(reportDir, "system_info.txt"), systemInfo);
 
         var pdfPath = Path.Combine(reportDir, "QuickTick_Report.pdf");
@@ -72,6 +76,8 @@ class Program
         var last = Stopwatch.GetTimestamp();
         var stopwatchFreq = Stopwatch.Frequency;
 
+        int progressInterval = Math.Max(1, eventsToCapture / 10);
+
         var timer = new QuickTickTimer(intervalMs)
         {
             AutoReset = true
@@ -104,6 +110,11 @@ class Program
                 {
                     Console.WriteLine(ex);
                 }
+            }
+
+            if (counter % progressInterval == 0)
+            {
+                Console.WriteLine($"Progress: {counter * 100 / eventsToCapture}% ({counter}/{eventsToCapture})");
             }
 
             counter++;         
@@ -241,14 +252,49 @@ class Program
         return a * b;
     }
 
-    static string GetSystemInfo()
+    static string GetSystemInfo(TestConfig cfg)
     {
-        return $"OS: {RuntimeInformation.OSDescription}\n" +
-               $"Architecture: {RuntimeInformation.OSArchitecture}\n" +
-               $"Framework: {RuntimeInformation.FrameworkDescription}\n" +
-               $"Processor Count: {Environment.ProcessorCount}\n" +
-               $"64-bit OS: {Environment.Is64BitOperatingSystem}\n" +
-               $"64-bit Process: {Environment.Is64BitProcess}\n";
+        var info =  $"OS: {RuntimeInformation.OSDescription}\n" +
+                    $"Architecture: {RuntimeInformation.OSArchitecture}\n" +
+                    $"Framework: {RuntimeInformation.FrameworkDescription}\n" +
+                    $"Processor Count: {Environment.ProcessorCount}\n" +
+                    $"64-bit OS: {Environment.Is64BitOperatingSystem}\n" +
+                    $"64-bit Process: {Environment.Is64BitProcess}\n" +
+                    $"Thread Priority: {cfg.ThreadPriority}\n";
+
+        var scheme = GetWindowsPowerScheme();
+        if (scheme != null)
+        {
+            info += $"Power Scheme: {scheme}\n";
+        }
+
+        return info;
+    }
+
+    static string? GetWindowsPowerScheme()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return null;
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo("powercfg", "/GETACTIVESCHEME")
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            var proc = Process.Start(psi);
+            proc.WaitForExit(2000);
+            var output = proc.StandardOutput.ReadToEnd();
+            return output.Trim();
+        }
+        catch 
+        { 
+            return "Unknown"; 
+        }
     }
 
     static void GeneratePdfReport(string path, List<TimingTestResult> results, string reportDir, string systemInfo)

@@ -1,0 +1,5 @@
+{
+  "ThreadPriority": "Normal",
+  "IntervalsMs": [ 1, 5, 50 ],
+  "TimeInSecondsPerTest": 10
+}
