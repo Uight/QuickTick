@@ -7,15 +7,24 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
     private readonly IntPtr iocpHandle;
     private readonly IntPtr waitIocpHandle;
     private readonly IntPtr timerHandle;
-    private readonly IntPtr successCompletionKey = new IntPtr(1);
+
+    private static readonly IntPtr successCompletionKey = new(1);
+
+    private volatile bool autoReset;
+    private volatile bool isRunning;
+    private volatile float intervalMs;
     private long intervalTicks;
-    private double intervalMs;
-    private bool autoReset;
-    private bool isRunning;
     private long nextFireTime;
 
     private Thread? completionThread;
     private QuickTickElapsedEventHandler? elapsed;
+
+    private bool disposed;
+
+    ~QuickTickTimerImplementation()
+    {
+        Dispose(false);
+    }
 
     public event QuickTickElapsedEventHandler? Elapsed
     {
@@ -33,8 +42,8 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
                 throw new ArgumentOutOfRangeException("Interval must be between 0.5 and int.MaxValue");
             }
 
-            intervalMs = value;
-            intervalTicks = (long)(intervalMs * TimeSpan.TicksPerMillisecond);
+            intervalMs = (float)value;
+            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * TimeSpan.TicksPerMillisecond));
         }
     }
 
@@ -70,11 +79,14 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
 
     public void Start()
     {
-        if (isRunning) return;
+        if (isRunning)
+        {
+            return;
+        }
 
         isRunning = true;
 
-        nextFireTime = DateTime.UtcNow.Ticks + intervalTicks; // Compute first expiration
+        Interlocked.Exchange(ref nextFireTime, DateTime.UtcNow.Ticks + Interlocked.Read(ref intervalTicks));
 
         SetTimer();
 
@@ -102,7 +114,10 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         // Post a dummy completion to get out of GetQueuedCompletionStatusEx in the completionThread. Use a key different to successCompletionKey
         Win32Interop.PostQueuedCompletionStatus(iocpHandle, 0, IntPtr.Zero, IntPtr.Zero);
 
-        completionThread?.Join();
+        if (Thread.CurrentThread != completionThread)
+        {
+            completionThread?.Join();
+        }
         completionThread = null;
 
         if (waitIocpHandle != IntPtr.Zero)
@@ -113,7 +128,22 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
 
     public void Dispose()
     {
-        Stop();
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    private void Dispose(bool disposing)
+    {
+        if (disposed) return;
+        {
+            disposed = true;
+        }
+
+        if (disposing)
+        {
+            Stop();
+            elapsed = null;
+        }
 
         if (waitIocpHandle != IntPtr.Zero)
         {
@@ -129,13 +159,11 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         {
             Win32Interop.CloseHandle(timerHandle);
         }
-
-        elapsed = null;
     }
 
     private void SetTimer()
     {
-        long dueTime = nextFireTime - DateTime.UtcNow.Ticks; // Calculate absolute expiration
+        long dueTime = Interlocked.Read(ref nextFireTime) - DateTime.UtcNow.Ticks; // Calculate absolute expiration
         dueTime = dueTime < 0 ? 0 : -dueTime; // Ensure valid time
 
         if (!Win32Interop.SetWaitableTimer(timerHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false))
@@ -155,18 +183,28 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
     {
         while (isRunning)
         {
-            if (Win32Interop.GetQueuedCompletionStatus(iocpHandle, out _, out var lpCompletionKey, out _, uint.MaxValue))
+            var getStatusResult = Win32Interop.GetQueuedCompletionStatus(iocpHandle, out _, out var lpCompletionKey, out _, uint.MaxValue);
+
+            if (!getStatusResult)
+            {
+                if (!Win32Interop.GetHandleInformation(iocpHandle, out _))
+                {
+                    isRunning = false;
+                    break;
+                }
+            }
+            else
             {
                 if (lpCompletionKey == successCompletionKey)
                 {
                     var actualFireTime = DateTime.UtcNow;
-                    var scheduledFireTime = new DateTime(nextFireTime, DateTimeKind.Utc);
+                    var scheduledFireTime = new DateTime(Interlocked.Read(ref nextFireTime), DateTimeKind.Utc);
 
                     var elapsedEventArgs = new QuickTickElapsedEventArgs(actualFireTime, scheduledFireTime);
 
                     if (autoReset)
                     {
-                        nextFireTime += intervalTicks;
+                        Interlocked.Add(ref nextFireTime, Interlocked.Read(ref intervalTicks));
                         SetTimer();
                     }
                     else
@@ -178,7 +216,8 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
                         }
                     }
 
-                    elapsed?.Invoke(this, elapsedEventArgs);
+                    var handler = elapsed;
+                    handler?.Invoke(this, elapsedEventArgs);
                 }
             }
         }

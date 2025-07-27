@@ -15,6 +15,13 @@ internal partial class Win32Interop
     );
 
     [LibraryImport(KernelDll, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetHandleInformation(
+        IntPtr hObject,
+        out uint lpdwFlags
+    );
+
+    [LibraryImport(KernelDll, SetLastError = true)]
     public static partial IntPtr CreateIoCompletionPort(
         IntPtr FileHandle, // A file handle or Invalid_Handle_Value // Not needed here => use Invalid_Handle_Value
         IntPtr ExistingCompletionPort, // Handle for a open I/O completion port or null // Not needed here
@@ -96,6 +103,13 @@ internal partial class Win32Interop
     public static extern bool CloseHandle(
           IntPtr hObject // The handle to close
       );
+
+    [DllImport(KernelDll, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetHandleInformation(
+        IntPtr hObject, 
+        out uint lpdwFlags
+    );
 
     [DllImport(KernelDll, SetLastError = true)]
     public static extern IntPtr CreateIoCompletionPort(
