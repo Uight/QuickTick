@@ -24,14 +24,7 @@ public static class QuickTickTiming
 
             using (cancellationToken.Register(() => tcs.TrySetCanceled()))
             {
-                try
-                {
-                    await tcs.Task;
-                }
-                catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    // Ignore
-                }
+                await tcs.Task;
             }
         }
     }
