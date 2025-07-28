@@ -101,11 +101,8 @@ class Program
 
             if (counter == eventsToCapture)
             {
-                Task.Run(() =>
-                {
-                    timer.Stop();
-                    tcs.SetResult(samples);
-                });
+                timer.Stop();
+                tcs.SetResult(samples);
             }
 
             if (counter % progressInterval == 0)
@@ -171,12 +168,9 @@ class Program
             {
                 try
                 {
-                    Task.Run(() =>
-                    {
-                        timer.Stop();
-                        timer.Dispose();
-                        tcs.SetResult(samples);
-                    });
+                    timer.Stop();
+                    timer.Dispose();
+                    tcs.SetResult(samples);
                 }
                 catch (Exception ex)
                 {
