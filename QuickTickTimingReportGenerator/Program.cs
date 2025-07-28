@@ -26,18 +26,18 @@ class Program
             var iterations = config.TimeInSecondsPerTest * 1000 / duration;
 
             Thread.Sleep(500);
-            // QuickTick Delay
-            Console.WriteLine($"Running QuickTick Delay test for {iterations} iterations with {duration}ms...");
+            // QuickTick Sleep
+            Console.WriteLine($"Running QuickTick Sleep test for {iterations} iterations with {duration}ms...");
 
-            var delayMonitor = new CPUMonitor();
-            delayMonitor.Start();
-            var delaySamples = await RunQuickTickDelayTest(duration, iterations);
-            delayMonitor.Stop();
-            var delayCpuUsage = delayMonitor.GetAverageCpuUsage();
-            delayMonitor.Dispose();    
+            var sleepMonitor = new CPUMonitor();
+            sleepMonitor.Start();
+            var sleepamples = await RunQuickTickSleepTest(duration, iterations);
+            sleepMonitor.Stop();
+            var sleepCpuUsage = sleepMonitor.GetAverageCpuUsage();
+            sleepMonitor.Dispose();    
             
-            allResults.Add(new TimingTestResult($"QuickTick Delay {duration}ms", delaySamples));
-            DrawHistogram(delaySamples, Path.Combine(reportDir, $"histogram_QuickTickDelay_{duration}ms.png"), duration, delayCpuUsage);
+            allResults.Add(new TimingTestResult($"QuickTick Sleep {duration}ms", sleepamples));
+            DrawHistogram(sleepamples, Path.Combine(reportDir, $"histogram_QuickTickSleep_{duration}ms.png"), duration, sleepCpuUsage);
 
             Thread.Sleep(500);
             // QuickTick Timer
@@ -115,7 +115,7 @@ class Program
         return tcs.Task;
     }
 
-    static async Task<List<double>> RunQuickTickDelayTest(int durationMs, int iterations)
+    static async Task<List<double>> RunQuickTickSleepTest(int durationMs, int iterations)
     {
         var samples = new List<double>();
         int progressInterval = Math.Max(1, iterations / 10);
@@ -386,19 +386,19 @@ class Program
 
                     foreach (var group in grouped)
                     {
-                        var delay = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Delay"));
+                        var sleep = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Sleep"));
                         var timer = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Timer"));
                         var hirestimer = group.FirstOrDefault(r => r.Label.StartsWith("HiResTimer"));
 
                         col.Item().PageBreak();
 
-                        if (delay != null)
+                        if (sleep != null)
                         {
-                            var (min, max, mean, stddev) = GetStats(delay.Samples);
-                            col.Item().Text(delay.Label).FontSize(16).Bold();
-                            col.Item().Text($"Samples: {delay.Samples.Count}, Min: {min:F3} ms, Max: {max:F3} ms, Mean: {mean:F3} ms, StdDev: {stddev:F3} ms");
+                            var (min, max, mean, stddev) = GetStats(sleep.Samples);
+                            col.Item().Text(sleep.Label).FontSize(16).Bold();
+                            col.Item().Text($"Samples: {sleep.Samples.Count}, Min: {min:F3} ms, Max: {max:F3} ms, Mean: {mean:F3} ms, StdDev: {stddev:F3} ms");
 
-                            var imgPath = Path.Combine(reportDir, $"histogram_QuickTickDelay_{group.Key}ms.png");
+                            var imgPath = Path.Combine(reportDir, $"histogram_QuickTickSleep_{group.Key}ms.png");
                             if (File.Exists(imgPath))
                                 col.Item().Image(Image.FromFile(imgPath)).FitWidth();
                         }
