@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace QuickTickLib;
 
@@ -14,7 +15,8 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
     private volatile bool isRunning;
     private volatile float intervalMs;
     private long intervalTicks;
-    private long nextFireTime;
+    private long nextFireTicks;
+    private Stopwatch stopWatch = new();
 
     private Thread? completionThread;
     private QuickTickElapsedEventHandler? elapsed;
@@ -83,10 +85,11 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         {
             return;
         }
+        stopWatch.Restart();
 
         isRunning = true;
 
-        Interlocked.Exchange(ref nextFireTime, DateTime.UtcNow.Ticks + Interlocked.Read(ref intervalTicks));
+        Interlocked.Exchange(ref nextFireTicks, Interlocked.Read(ref intervalTicks));
 
         SetTimer();
 
@@ -124,6 +127,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         {
             Win32Interop.NtCancelWaitCompletionPacket(waitIocpHandle, true);
         }
+        stopWatch.Reset();
     }
 
     public void Dispose()
@@ -163,7 +167,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
 
     private void SetTimer()
     {
-        long dueTime = Interlocked.Read(ref nextFireTime) - DateTime.UtcNow.Ticks; // Calculate absolute expiration
+        long dueTime = Interlocked.Read(ref nextFireTicks) - stopWatch.ElapsedTicks; // Calculate absolute expiration
         dueTime = dueTime < 0 ? 0 : -dueTime; // Ensure valid time
 
         if (!Win32Interop.SetWaitableTimer(timerHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false))
@@ -198,18 +202,28 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
                 if (lpCompletionKey == successCompletionKey)
                 {
                     var actualFireTime = DateTime.UtcNow;
-                    var scheduledFireTime = new DateTime(Interlocked.Read(ref nextFireTime), DateTimeKind.Utc);
+                    var deltaTicks = Interlocked.Read(ref nextFireTicks) - stopWatch.ElapsedTicks;
+                    var scheduledFireTime = actualFireTime.AddTicks(deltaTicks);
 
                     var elapsedEventArgs = new QuickTickElapsedEventArgs(actualFireTime, scheduledFireTime);
 
                     if (autoReset)
                     {
-                        Interlocked.Add(ref nextFireTime, Interlocked.Read(ref intervalTicks));
+                        var interval = Interlocked.Read(ref intervalTicks);
+                        var nextTicks = Interlocked.Add(ref nextFireTicks, interval);
+                        if (stopWatch.Elapsed.TotalHours >= 1)
+                        {
+                            var remaining = nextTicks - stopWatch.ElapsedTicks;
+                            stopWatch.Restart();
+                            Interlocked.Exchange(ref nextFireTicks, remaining);
+                        }
+
                         SetTimer();
                     }
                     else
                     {
                         isRunning = false;
+                        stopWatch.Reset();
                         if (timerHandle != IntPtr.Zero)
                         {
                             Win32Interop.CancelWaitableTimer(timerHandle);
