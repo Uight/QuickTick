@@ -4,6 +4,8 @@ public interface IQuickTickTimer : IDisposable
 {
     double Interval { get; set; }
     bool AutoReset { get; set; }
+    bool SkipMissedTicks { get; set; }
+    ThreadPriority Priority { get; set; }
 
     event QuickTickElapsedEventHandler? Elapsed;
 

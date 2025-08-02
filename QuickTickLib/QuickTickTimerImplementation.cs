@@ -19,6 +19,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
     private Stopwatch stopWatch = new();
 
     private Thread? completionThread;
+    private ThreadPriority threadPriority = ThreadPriority.Normal;
     private QuickTickElapsedEventHandler? elapsed;
 
     private bool disposed;
@@ -53,6 +54,25 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
     {
         get => autoReset;
         set => autoReset = value;
+    }
+
+    public bool SkipMissedTicks
+    {
+        get => throw new NotImplementedException();
+        set => throw new NotImplementedException();
+    }
+
+    public ThreadPriority Priority
+    {
+        get => threadPriority;
+        set
+        {
+            threadPriority = value;
+            if (completionThread != null && completionThread.IsAlive)
+            {
+                completionThread.Priority = value;
+            }           
+        }
     }
 
     public QuickTickTimerImplementation(double interval)
@@ -201,12 +221,6 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
             {
                 if (lpCompletionKey == successCompletionKey)
                 {
-                    var actualFireTime = DateTime.UtcNow;
-                    var deltaTicks = Interlocked.Read(ref nextFireTicks) - stopWatch.ElapsedTicks;
-                    var scheduledFireTime = actualFireTime.AddTicks(deltaTicks);
-
-                    var elapsedEventArgs = new QuickTickElapsedEventArgs(actualFireTime, scheduledFireTime);
-
                     if (autoReset)
                     {
                         var interval = Interlocked.Read(ref intervalTicks);
@@ -229,6 +243,11 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
                             Win32Interop.CancelWaitableTimer(timerHandle);
                         }
                     }
+
+                    var skippedTicks = 0L;
+                    var timeSinceLastFire = TimeSpan.Zero;
+
+                    var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedTicks);
 
                     var handler = elapsed;
                     handler?.Invoke(this, elapsedEventArgs);

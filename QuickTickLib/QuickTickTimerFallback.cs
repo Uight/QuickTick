@@ -21,6 +21,17 @@ internal class QuickTickTimerFallback : IQuickTickTimer
         get => timer.AutoReset;
         set => timer.AutoReset = value;
     }
+    public bool SkipMissedTicks 
+    { 
+        get => throw new NotImplementedException(); 
+        set => throw new NotImplementedException(); 
+    }
+
+    public ThreadPriority Priority 
+    { 
+        get => throw new NotImplementedException(); 
+        set => throw new NotImplementedException(); 
+    }
 
     public event QuickTickElapsedEventHandler? Elapsed;
 
@@ -46,7 +57,7 @@ internal class QuickTickTimerFallback : IQuickTickTimer
     {
         var scheduledFireTime = nextFireTime;
         nextFireTime = nextFireTime.AddMilliseconds(Interval);
-        Elapsed?.Invoke(this, new QuickTickElapsedEventArgs(DateTime.UtcNow, scheduledFireTime));
+        Elapsed?.Invoke(this, new QuickTickElapsedEventArgs(TimeSpan.Zero, 0));
     }
 
     public void Dispose()

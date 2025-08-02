@@ -2,12 +2,12 @@
 
 public class QuickTickElapsedEventArgs
 {
-    public DateTime SignalTime { get; }       // Actual time the timer fired
-    public DateTime ScheduledTime { get; }    // When the timer was supposed to fire
+    public TimeSpan TimeSinceLastTick { get; }
+    public long SkippedTicks { get; }  
 
-    public QuickTickElapsedEventArgs(DateTime signalTime, DateTime scheduledTime)
+    public QuickTickElapsedEventArgs(TimeSpan timeSinceLastTick, long skippedTicks)
     {
-        SignalTime = signalTime;
-        ScheduledTime = scheduledTime;
+        TimeSinceLastTick = timeSinceLastTick;
+        SkippedTicks = skippedTicks;
     }
 }
