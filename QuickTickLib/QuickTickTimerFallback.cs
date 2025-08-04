@@ -1,4 +1,6 @@
-﻿using System.Timers;
+﻿// Some parts of the code are inspired by György Kőszeg's HighRes Timer: https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs
+
+using System.Timers;
 
 namespace QuickTickLib;
 

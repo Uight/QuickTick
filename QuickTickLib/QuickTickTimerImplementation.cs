@@ -1,4 +1,6 @@
-﻿using System.Diagnostics;
+﻿// Some parts of the code are inspired by György Kőszeg's HighRes Timer: https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs
+
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace QuickTickLib;
