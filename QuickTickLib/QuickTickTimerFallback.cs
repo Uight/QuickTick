@@ -23,7 +23,7 @@ internal class QuickTickTimerFallback : IQuickTickTimer
         get => timer.AutoReset;
         set => timer.AutoReset = value;
     }
-    public bool SkipMissedTicks 
+    public bool SkipMissedIntervals 
     { 
         get => throw new NotImplementedException(); 
         set => throw new NotImplementedException(); 

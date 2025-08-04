@@ -14,7 +14,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
     private static readonly IntPtr successCompletionKey = new(1);
 
     private volatile bool autoReset;
-    private volatile bool skipMissedTicks;
+    private volatile bool skipMissedIntervals;
     private volatile bool isRunning;
     private volatile float intervalMs;
     private long intervalTicks;
@@ -61,10 +61,10 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         set => autoReset = value;
     }
 
-    public bool SkipMissedTicks
+    public bool SkipMissedIntervals
     {
-        get => skipMissedTicks;
-        set => skipMissedTicks = value;
+        get => skipMissedIntervals;
+        set => skipMissedIntervals = value;
     }
 
     public ThreadPriority Priority
@@ -241,7 +241,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
                 var interval = Interlocked.Read(ref intervalTicks);
                 var nextTicks = Interlocked.Add(ref nextFireTicks, interval);           
 
-                if (skipMissedTicks)
+                if (skipMissedIntervals)
                 {
                     while (nextTicks < currentTicks)
                     {

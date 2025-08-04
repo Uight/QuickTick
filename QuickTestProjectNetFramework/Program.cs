@@ -55,7 +55,7 @@ using var timer = new QuickTickTimer(5);
 var timerTimingValues = new ConcurrentBag<double>();
 
 timer.Elapsed += TimerElapsed;
-timer.SkipMissedTicks = false;
+timer.SkipMissedIntervals = false;
 timer.AutoReset = true;
 timer.Start();
 timer.Stop(); // Just for testing

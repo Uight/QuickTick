@@ -27,10 +27,10 @@ public sealed class QuickTickTimer : IQuickTickTimer
         get => timer.AutoReset;
         set => timer.AutoReset = value;
     }
-    public bool SkipMissedTicks 
+    public bool SkipMissedIntervals 
     { 
-        get => timer.SkipMissedTicks; 
-        set => timer.SkipMissedTicks = value; 
+        get => timer.SkipMissedIntervals; 
+        set => timer.SkipMissedIntervals = value; 
     }
 
     public ThreadPriority Priority 
