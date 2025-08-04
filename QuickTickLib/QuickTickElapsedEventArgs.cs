@@ -2,12 +2,12 @@
 
 public class QuickTickElapsedEventArgs
 {
-    public TimeSpan TimeSinceLastTick { get; }
+    public TimeSpan TimeSinceLastInterval { get; }
     public long SkippedIntervals { get; }  
 
-    public QuickTickElapsedEventArgs(TimeSpan timeSinceLastTick, long skippedIntervals)
+    public QuickTickElapsedEventArgs(TimeSpan timeSinceLastInterval, long skippedIntervals)
     {
-        TimeSinceLastTick = timeSinceLastTick;
+        TimeSinceLastInterval = timeSinceLastInterval;
         SkippedIntervals = skippedIntervals;
     }
 }

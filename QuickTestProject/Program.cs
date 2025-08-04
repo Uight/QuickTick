@@ -100,6 +100,6 @@ void TimerElapsed(object? sender, QuickTickElapsedEventArgs elapsedArgs)
     timerTimingValues.Add(timerStopwatch.Elapsed.TotalMilliseconds);
     timerStopwatch.Restart();
     /*Console.WriteLine($"Now: '{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.ffffff}'; " +
-                      $"Time since last tick: '{elapsedArgs.TimeSinceLastTick.TotalMilliseconds}'; " +
+                      $"Time since last tick: '{elapsedArgs.TimeSinceLastInterval.TotalMilliseconds}'; " +
                       $"Skipped: '{elapsedArgs.SkippedIntervals}';");*/
 }
