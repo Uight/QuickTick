@@ -1,5 +1,6 @@
 ﻿// Some parts of the code are inspired by György Kőszeg's HighRes Timer: https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs
 
+using System.Collections.Concurrent;
 using System.Timers;
 
 namespace QuickTickLib;
@@ -7,7 +8,13 @@ namespace QuickTickLib;
 internal class QuickTickTimerFallback : IQuickTickTimer
 {
     private readonly System.Timers.Timer timer;
-    private DateTime nextFireTime;
+    private readonly BlockingCollection<bool> eventQueue = [];
+    private volatile bool running;
+    private volatile bool skipMissedIntervals;
+    private ThreadPriority threadPriority = ThreadPriority.Normal;
+    private readonly Thread workerThread;
+    private long skippedIntervals;
+    private QuickTickElapsedEventHandler? elapsed;
 
     public double Interval
     {
@@ -23,47 +30,104 @@ internal class QuickTickTimerFallback : IQuickTickTimer
         get => timer.AutoReset;
         set => timer.AutoReset = value;
     }
+
     public bool SkipMissedIntervals 
-    { 
-        get => throw new NotImplementedException(); 
-        set => throw new NotImplementedException(); 
+    {
+        get => skipMissedIntervals;
+        set
+        {
+            skipMissedIntervals = value;
+        }
     }
 
-    public ThreadPriority Priority 
-    { 
-        get => throw new NotImplementedException(); 
-        set => throw new NotImplementedException(); 
+    public ThreadPriority Priority
+    {
+        get => threadPriority;
+        set
+        {
+            threadPriority = value;
+            workerThread.Priority = value;
+        }
     }
 
-    public event QuickTickElapsedEventHandler? Elapsed;
+    public event QuickTickElapsedEventHandler? Elapsed
+    {
+        add => elapsed += value;
+        remove => elapsed -= value;
+    }
 
     public QuickTickTimerFallback(double interval)
     {
-        timer = new System.Timers.Timer();
-        Interval = interval;
+        timer = new System.Timers.Timer(interval);
         timer.Elapsed += OnElapsedInternal;
+
+        workerThread = new Thread(Run)
+        {
+            IsBackground = true,
+            Priority = Priority
+        };
+
+        workerThread.Start();
     }
 
     public void Start()
     {
-        nextFireTime = DateTime.UtcNow.AddMilliseconds(Interval); // Compute first expiration
         timer.Start();
+        running = true;
     }
 
     public void Stop()
     {
+        running = false;
         timer.Stop();
     }
 
     private void OnElapsedInternal(object? sender, ElapsedEventArgs e)
     {
-        var scheduledFireTime = nextFireTime;
-        nextFireTime = nextFireTime.AddMilliseconds(Interval);
-        Elapsed?.Invoke(this, new QuickTickElapsedEventArgs(TimeSpan.Zero, 0));
+        eventQueue.Add(true);
+    }
+
+    private void Run()
+    {
+        while (true)
+        {
+            try
+            {
+                // Wait for at least one callback
+                if (!eventQueue.TryTake(out _, Timeout.Infinite))
+                {
+                    continue;
+                }
+
+                // If skipping is enabled, drain queue and only keep the latest
+                if (skipMissedIntervals && eventQueue.Count > 0)
+                {
+                    while (eventQueue.TryTake(out _))
+                    {
+                        skippedIntervals++;
+                    }
+                }
+
+                var elapsedEventArgs = new QuickTickElapsedEventArgs(TimeSpan.Zero, skippedIntervals);
+
+                if (running)
+                {
+                    var handler = elapsed;
+                    handler?.Invoke(this, elapsedEventArgs);
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // Queue completed
+                break;
+            }
+        }
     }
 
     public void Dispose()
     {
         timer.Dispose();
+        running = false;
+        eventQueue.CompleteAdding();
     }
 }
