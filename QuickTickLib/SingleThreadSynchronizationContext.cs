@@ -4,13 +4,13 @@ public class SingleThreadSynchronizationContext : SynchronizationContext, IDispo
 {
     private readonly BlockingCollection<(SendOrPostCallback Callback, object? State)> queue = new();
     private readonly Thread workerThread;
-    private readonly bool skipMissedTicks;
+    private readonly bool skipMissedIntervals;
     private volatile bool running = true;
 
     /// <summary>
     /// Number of ticks that were discarded because a new one was already queued.
     /// </summary>
-    public long SkippedTickCount { get; private set; }
+    public long SkippedIntervalCount { get; private set; }
 
     /// <summary>
     /// Create a single-threaded synchronization context.
@@ -19,7 +19,7 @@ public class SingleThreadSynchronizationContext : SynchronizationContext, IDispo
     /// <param name="priority">The priority of the dedicated worker thread.</param>
     public SingleThreadSynchronizationContext(bool skipMissedTicks = false, ThreadPriority priority = ThreadPriority.Normal)
     {
-        this.skipMissedTicks = skipMissedTicks;
+        this.skipMissedIntervals = skipMissedTicks;
 
         workerThread = new Thread(Run)
         {
@@ -46,12 +46,12 @@ public class SingleThreadSynchronizationContext : SynchronizationContext, IDispo
                 }                
 
                 // If skipping is enabled, drain queue and only keep the latest
-                if (skipMissedTicks && queue.Count > 0)
+                if (skipMissedIntervals && queue.Count > 0)
                 {
                     while (queue.TryTake(out var nextItem))
                     {
                         workItem = nextItem;
-                        SkippedTickCount++;
+                        SkippedIntervalCount++;
                     }
                 }
 
