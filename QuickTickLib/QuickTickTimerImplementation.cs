@@ -18,7 +18,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
     private long intervalTicks;
     private long nextFireTicks;
     private long lastFireTicks;
-    private long totalSkippedTicks;
+    private long totalSkippedIntervals;
     private Stopwatch stopWatch = new();
 
     private Thread? completionThread;
@@ -113,7 +113,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         isRunning = true;
 
         Interlocked.Exchange(ref nextFireTicks, Interlocked.Read(ref intervalTicks));
-        Interlocked.Exchange(ref totalSkippedTicks, 0L);
+        Interlocked.Exchange(ref totalSkippedIntervals, 0L);
         Interlocked.Exchange(ref lastFireTicks, 0L);
 
         SetTimer();
@@ -232,6 +232,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
             var currentTicks = stopWatch.ElapsedTicks;
             var lastFireTicksLocal = Interlocked.Read(ref lastFireTicks);
             Interlocked.Exchange(ref lastFireTicks, currentTicks);
+            var skippedIntervals = Interlocked.Read(ref totalSkippedIntervals);
 
             if (autoReset)
             {
@@ -243,8 +244,12 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
                     while (nextTicks < currentTicks)
                     {
                         nextTicks = Interlocked.Add(ref nextFireTicks, interval);
-                        Interlocked.Add(ref totalSkippedTicks, 1L);
+                        if (skippedIntervals < long.MaxValue)
+                        {
+                            skippedIntervals++;
+                        }
                     }
+                    Interlocked.Exchange(ref totalSkippedIntervals, skippedIntervals);
                 }
 
                 if (stopWatch.Elapsed.TotalHours >= 1)
@@ -266,11 +271,10 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
                     Win32Interop.CancelWaitableTimer(timerHandle);
                 }
             }
-
-            var skippedTicks = Interlocked.Read(ref totalSkippedTicks);        
+    
             var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
 
-            var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedTicks);
+            var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
 
             var handler = elapsed;
             handler?.Invoke(this, elapsedEventArgs);
