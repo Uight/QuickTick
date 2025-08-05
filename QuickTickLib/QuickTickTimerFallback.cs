@@ -108,7 +108,7 @@ internal class QuickTickTimerFallback : IQuickTickTimer
             // Wait for at least one callback
             if (!localEventQueue.TryTake(out _, Timeout.Infinite))
             {
-                break; // In his case the CompleteAdding was called
+                break; // In this case the CompleteAdding was called
             }
 
             // If skipping is enabled, drain queue and only keep the latest
