@@ -8,11 +8,11 @@ namespace QuickTickLib;
 internal class QuickTickTimerFallback : IQuickTickTimer
 {
     private readonly System.Timers.Timer timer;
-    private readonly BlockingCollection<bool> eventQueue = [];
+    private BlockingCollection<bool>? eventQueue;
     private volatile bool running;
     private volatile bool skipMissedIntervals;
     private ThreadPriority threadPriority = ThreadPriority.Normal;
-    private readonly Thread workerThread;
+    private Thread? workerThread;
     private long skippedIntervals;
     private QuickTickElapsedEventHandler? elapsed;
 
@@ -46,7 +46,10 @@ internal class QuickTickTimerFallback : IQuickTickTimer
         set
         {
             threadPriority = value;
-            workerThread.Priority = value;
+            if (workerThread != null)
+            {
+                workerThread.Priority = value;
+            }         
         }
     }
 
@@ -60,66 +63,69 @@ internal class QuickTickTimerFallback : IQuickTickTimer
     {
         timer = new System.Timers.Timer(interval);
         timer.Elapsed += OnElapsedInternal;
+    }
 
-        workerThread = new Thread(Run)
+    public void Start()
+    {
+        if (running)
+        {
+            return;
+        }
+
+        eventQueue = [];
+        workerThread = new Thread(() => Run(eventQueue))
         {
             IsBackground = true,
             Priority = Priority
         };
 
-        workerThread.Start();
-    }
-
-    public void Start()
-    {
-        timer.Start();
         running = true;
+        workerThread.Start();
+        timer.Start();
     }
 
     public void Stop()
     {
-        running = false;
+        if (!running)
+        {
+            return;
+        }
+
         timer.Stop();
+        running = false;
+        eventQueue?.CompleteAdding();  
     }
 
     private void OnElapsedInternal(object? sender, ElapsedEventArgs e)
     {
-        eventQueue.Add(true);
+        eventQueue?.Add(true);
     }
 
-    private void Run()
+    private void Run(BlockingCollection<bool> localEventQueue)
     {
-        while (true)
+        while (running)
         {
-            try
+            // Wait for at least one callback
+            if (!localEventQueue.TryTake(out _, Timeout.Infinite))
             {
-                // Wait for at least one callback
-                if (!eventQueue.TryTake(out _, Timeout.Infinite))
-                {
-                    continue;
-                }
+                break; // In his case the CompleteAdding was called
+            }
 
-                // If skipping is enabled, drain queue and only keep the latest
-                if (skipMissedIntervals && eventQueue.Count > 0)
+            // If skipping is enabled, drain queue and only keep the latest
+            if (skipMissedIntervals && localEventQueue.Count > 0)
+            {
+                while (localEventQueue.TryTake(out _))
                 {
-                    while (eventQueue.TryTake(out _))
-                    {
-                        skippedIntervals++;
-                    }
-                }
-
-                var elapsedEventArgs = new QuickTickElapsedEventArgs(TimeSpan.Zero, skippedIntervals);
-
-                if (running)
-                {
-                    var handler = elapsed;
-                    handler?.Invoke(this, elapsedEventArgs);
+                    skippedIntervals++;
                 }
             }
-            catch (InvalidOperationException)
+
+            var elapsedEventArgs = new QuickTickElapsedEventArgs(TimeSpan.Zero, skippedIntervals);
+
+            if (running)
             {
-                // Queue completed
-                break;
+                var handler = elapsed;
+                handler?.Invoke(this, elapsedEventArgs);
             }
         }
     }
@@ -128,6 +134,6 @@ internal class QuickTickTimerFallback : IQuickTickTimer
     {
         timer.Dispose();
         running = false;
-        eventQueue.CompleteAdding();
+        eventQueue?.CompleteAdding();
     }
 }
