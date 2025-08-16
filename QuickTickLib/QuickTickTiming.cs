@@ -49,6 +49,20 @@ public static class QuickTickTiming
         QuickTickSleep(sleepTimeTicks);
     }
 
+    internal static void MinimalSleep()
+    {
+        var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
+        if (isQuickTickSupported)
+        {
+            const long halfMillisecondInTicks = TimeSpan.TicksPerMillisecond / 2;
+            QuickTickSleep(halfMillisecondInTicks);
+        }
+        else
+        {
+            Thread.Sleep(1);
+        }
+    }
+
     private static void QuickTickSleep(long tickToSleep)
     {
         var sleepTimeTicks = -tickToSleep; // negative means relative time
