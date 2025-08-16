@@ -45,7 +45,13 @@ public static class QuickTickTiming
             return;
         }
 
-        var sleepTimeTicks = -TimeSpan.FromMilliseconds(millisecondsTimeout).Ticks; // negative means relative time
+        var sleepTimeTicks = TimeSpan.FromMilliseconds(millisecondsTimeout).Ticks;
+        QuickTickSleep(sleepTimeTicks);
+    }
+
+    private static void QuickTickSleep(long tickToSleep)
+    {
+        var sleepTimeTicks = -tickToSleep; // negative means relative time
 
         var iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
         if (iocpHandle == IntPtr.Zero)
