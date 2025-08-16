@@ -126,6 +126,7 @@ Initializes a new instance of the `QuickTickTimer` class with the specified inte
     - For QuickTick: must be ≥ 0.5 milliseconds and ≤ int.MaxValue milliseconds
     - For Fallback: must be ≥ 1 millisecond and ≤ int.MaxValue milliseconds
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
+- `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10.
 
 #### QuickTickTimer(TimeSpan interval)
 
@@ -147,6 +148,7 @@ tp create a timer with sub millisecond timing you would need to create the timeS
     - For QuickTick: must be ≥ 0.5 milliseconds and ≤ int.MaxValue milliseconds
     - For Fallback: must be ≥ 1 millisecond and ≤ int.MaxValue milliseconds
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
+- `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10.
 
 ### Properties
 
@@ -159,7 +161,7 @@ public bool IsQuickTickUsed { get; }
 Gets a value indicating whether the high-resolution QuickTick implementation is being used.
 
 When true, the timer is backed by the QuickTickTimerImplementation, which offers higher precision and lower latency on windows.
-When false, the platform does not support QuickTick, and the timer falls back to the QuickTickTimerFallback implementation.
+When false, the platform does not support QuickTick, and the timer falls back to the QuickTickTimerFallback implementation. (So true on Linux for example)
 
 #### Interval
 
@@ -263,6 +265,7 @@ will in this situation.
 
 - `ArgumentOutOfRangeException`: Thrown if `millisecondsTimeout` less than zero.
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
+- `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10.
 
 #### Delay()
 
@@ -282,3 +285,4 @@ Asynchronously blocks the current thread for the specified duration. It allows c
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
 - `TaskCanceledException`: If the cancellation token was cancelled during the delay phase.
 - `ObjectDisposedException`: The provided `cancellationToken` has already been disposed.
+- `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10.

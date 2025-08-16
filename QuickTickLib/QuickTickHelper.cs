@@ -29,6 +29,8 @@ internal static class QuickTickHelper
         {
             return true;
         }
-        return false;
+        // Throw here as we could use the Fallback but since the Fallback relies on System.Timers.Timer which
+        // is limited by windows timing. It is not possible to have a fallback for older windows Versions that behaves similar to the actual code.
+        throw new PlatformNotSupportedException("QuickTickLib can not run under Windows version below version 10.");
     }
 }
