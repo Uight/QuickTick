@@ -252,30 +252,33 @@ Inheritance `Object` -> `QuickTickTiming`
 #### Sleep()
 
 ```csharp
-public static void Sleep(int sleepTimeMs)
+public static void Sleep(int millisecondsTimeout)
 ```
 
 Blocks the current thread for the specified number of milliseconds.
-If the sleep time is less than or equal to 0ms, the function will behave the same as `Thread.Sleep()` 
+If the timeout time is less than or equal to 0ms, the function will behave the same as `Thread.Sleep()` 
 will in this situation.
 
 ##### Exceptions
 
+- `ArgumentOutOfRangeException`: Thrown if `millisecondsTimeout` less than zero.
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
 
 #### Delay()
 
 ```csharp
-public static async Task Delay(int milliseconds, CancellationToken cancellationToken = default)
-public static async Task Delay(TimeSpan timeSpan, CancellationToken cancellationToken = default)
+public static async Task Delay(int millisecondsDelay, CancellationToken cancellationToken = default)
+public static async Task Delay(TimeSpan delay, CancellationToken cancellationToken = default)
 ```
 
 Asynchronously blocks the current thread for the specified duration. It allows cancellation via the CancellationToken.
 
-- milliseconds and timeSpan specify the delay time.
+- millisecondsDelay and delay specify the delay time.
 - If cancellationToken is triggered, the delay will be canceled early.
 
 ##### Exceptions
 
-- `ArgumentOutOfRangeException`: Thrown if `interval` or `timeSpan` is less than or equal to zero.
+- `ArgumentOutOfRangeException`: Thrown if `millisecondsDelay` or `delay` is less than zero.
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
+- `TaskCanceledException`: If the cancellation token was cancelled during the delay phase.
+- `ObjectDisposedException`: The provided `cancellationToken` has already been disposed.
