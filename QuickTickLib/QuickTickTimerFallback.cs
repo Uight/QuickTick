@@ -66,6 +66,7 @@ internal class QuickTickTimerFallback : IQuickTickTimer
     {
         timer = new System.Timers.Timer(interval);
         timer.Elapsed += OnElapsedInternal;
+        timer.AutoReset = true;
     }
 
     public void Start()
