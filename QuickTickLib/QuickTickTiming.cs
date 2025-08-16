@@ -4,19 +4,19 @@ namespace QuickTickLib;
 
 public static class QuickTickTiming
 {
-    public static async Task Delay(int milliseconds, CancellationToken cancellationToken = default)
+    public static async Task Delay(int millisecondsDelay, CancellationToken cancellationToken = default)
     {
         var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
 
-        if (!isQuickTickSupported)
+        if (!isQuickTickSupported || millisecondsDelay <= 0)
         {
-            await Task.Delay(milliseconds, cancellationToken);
+            await Task.Delay(millisecondsDelay, cancellationToken);
             return;
         }
 
         var tcs = new TaskCompletionSource<bool>();
 
-        using (var timer = new QuickTickTimer(milliseconds))
+        using (var timer = new QuickTickTimer(millisecondsDelay))
         {
             timer.AutoReset = false;
             timer.Elapsed += (object? _, QuickTickElapsedEventArgs _) => tcs.TrySetResult(true);
@@ -29,23 +29,23 @@ public static class QuickTickTiming
         }
     }
 
-    public static async Task Delay(TimeSpan timeSpan, CancellationToken cancellationToken = default)
+    public static async Task Delay(TimeSpan delay, CancellationToken cancellationToken = default)
     {
-        var milliseconds = (int)Math.Ceiling(timeSpan.TotalMilliseconds);
+        var milliseconds = (int)Math.Ceiling(delay.TotalMilliseconds);
         await Delay(milliseconds, cancellationToken);
     }
 
-    public static void Sleep(int sleepTimeMs)
+    public static void Sleep(int millisecondsTimeout)
     {
         var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
 
-        if (sleepTimeMs <= 0 || !isQuickTickSupported)
+        if (!isQuickTickSupported || millisecondsTimeout <= 0)
         {
-            Thread.Sleep(sleepTimeMs);
+            Thread.Sleep(millisecondsTimeout);
             return;
         }
 
-        var sleepTimeTicks = -TimeSpan.FromMilliseconds(sleepTimeMs).Ticks; // negative means relative time
+        var sleepTimeTicks = -TimeSpan.FromMilliseconds(millisecondsTimeout).Ticks; // negative means relative time
 
         var iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
         if (iocpHandle == IntPtr.Zero)
