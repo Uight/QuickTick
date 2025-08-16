@@ -1,6 +1,7 @@
 ﻿// Some parts of the code are inspired by György Kőszeg's HighRes Timer: https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs
 
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Timers;
 
 namespace QuickTickLib;
@@ -15,6 +16,8 @@ internal class QuickTickTimerFallback : IQuickTickTimer
     private Thread? workerThread;
     private long skippedIntervals;
     private QuickTickElapsedEventHandler? elapsed;
+    private readonly Stopwatch stopWatch = new();
+    private long lastFireTicks;
 
     public double Interval
     {
@@ -71,15 +74,19 @@ internal class QuickTickTimerFallback : IQuickTickTimer
         {
             return;
         }
+        stopWatch.Restart();
 
+        running = true;
         eventQueue = [];
+        skippedIntervals = 0;
+        lastFireTicks = 0;
+
         workerThread = new Thread(() => Run(eventQueue))
         {
             IsBackground = true,
             Priority = Priority
         };
 
-        running = true;
         workerThread.Start();
         timer.Start();
     }
@@ -93,7 +100,8 @@ internal class QuickTickTimerFallback : IQuickTickTimer
 
         timer.Stop();
         running = false;
-        eventQueue?.CompleteAdding();  
+        eventQueue?.CompleteAdding();
+        stopWatch.Reset();
     }
 
     private void OnElapsedInternal(object? sender, ElapsedEventArgs e)
@@ -120,12 +128,30 @@ internal class QuickTickTimerFallback : IQuickTickTimer
                 }
             }
 
-            var elapsedEventArgs = new QuickTickElapsedEventArgs(TimeSpan.Zero, skippedIntervals);
+            var currentTicks = stopWatch.ElapsedTicks;
+            var lastFireTicksLocal = lastFireTicks;
+            lastFireTicks = currentTicks;
+
+            if (stopWatch.Elapsed.TotalHours >= 1)
+            {
+                stopWatch.Restart();
+                lastFireTicks = 0;
+            }
+
+            var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
+            var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
 
             if (running)
             {
                 var handler = elapsed;
                 handler?.Invoke(this, elapsedEventArgs);
+            }
+
+            if (!AutoReset)
+            {
+                running = false;
+                stopWatch.Reset();
+                break;
             }
         }
     }

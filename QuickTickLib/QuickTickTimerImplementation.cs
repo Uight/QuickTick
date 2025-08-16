@@ -21,7 +21,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
     private long nextFireTicks;
     private long lastFireTicks;
     private long totalSkippedIntervals;
-    private Stopwatch stopWatch = new();
+    private readonly Stopwatch stopWatch = new();
 
     private Thread? completionThread;
     private ThreadPriority threadPriority = ThreadPriority.Normal;
@@ -275,7 +275,6 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
             }
     
             var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
-
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
 
             var handler = elapsed;

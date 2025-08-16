@@ -225,16 +225,5 @@ internal partial class Win32Interop
         TIMER_QUERY_STATE = 0x0001, //Reserved for future // Is needed for NtCreateWaitCompletionPacket
     }
 
-    public const uint CreateWaitableTimerFlag_NONE = 0x00000000;
-    public const uint CreateWaitableTimerFlag_MANUAL_RESET = 0x00000001;
     public const uint CreateWaitableTimerFlag_HIGH_RESOLUTION = 0x00000002;
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct OVERLAPPED_ENTRY
-    {
-        public IntPtr lpCompletionKey;
-        public IntPtr lpOverlapped;
-        public IntPtr Internal;
-        public uint dwNumberOfBytesTransferred;
-    }
 }
