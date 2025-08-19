@@ -45,7 +45,27 @@ public static class QuickTickTiming
             return;
         }
 
-        var sleepTimeTicks = -TimeSpan.FromMilliseconds(millisecondsTimeout).Ticks; // negative means relative time
+        var sleepTimeTicks = TimeSpan.FromMilliseconds(millisecondsTimeout).Ticks;
+        QuickTickSleep(sleepTimeTicks);
+    }
+
+    internal static void MinimalSleep()
+    {
+        var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
+        if (isQuickTickSupported)
+        {
+            const long halfMillisecondInTicks = TimeSpan.TicksPerMillisecond / 2;
+            QuickTickSleep(halfMillisecondInTicks);
+        }
+        else
+        {
+            Thread.Sleep(1);
+        }
+    }
+
+    private static void QuickTickSleep(long tickToSleep)
+    {
+        var sleepTimeTicks = -tickToSleep; // negative means relative time
 
         var iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
         if (iocpHandle == IntPtr.Zero)

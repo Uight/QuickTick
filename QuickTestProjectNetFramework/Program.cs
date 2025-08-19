@@ -55,6 +55,7 @@ using var timer = new QuickTickTimer(5);
 var timerTimingValues = new ConcurrentBag<double>();
 
 timer.Elapsed += TimerElapsed;
+timer.SkipMissedIntervals = false;
 timer.AutoReset = true;
 timer.Start();
 timer.Stop(); // Just for testing
@@ -98,7 +99,7 @@ void TimerElapsed(object? sender, QuickTickElapsedEventArgs elapsedArgs)
 {
     timerTimingValues.Add(timerStopwatch.Elapsed.TotalMilliseconds);
     timerStopwatch.Restart();
-    /* Console.WriteLine($"Now: {DateTime.Now:yyyy-MM-dd HH:mm:ss.ffffff}; " +
-                      $"TimerFired: {elapsedArgs.SignalTime:yyyy-MM-dd HH:mm:ss.ffffff}; " +
-                      $"Expected: {elapsedArgs.ScheduledTime:yyyy-MM-dd HH:mm:ss.ffffff}"); */
+    /*Console.WriteLine($"Now: '{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.ffffff}'; " +
+                      $"Time since last tick: '{elapsedArgs.TimeSinceLastInterval.TotalMilliseconds}'; " +
+                      $"Skipped: '{elapsedArgs.SkippedIntervals}';");*/
 }
