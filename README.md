@@ -12,7 +12,10 @@ QuickTick leverages **IO Completion Ports (IOCP)** and **NT system calls** on wi
 It enables the creation of a `Timer` and the use of `Sleep` and `Delay` functions with precision below **15.6 ms**, ensuring accurate timing without impacting other parts of your application.
 QuickTick only really has an effect when used on a windows systems. On most other platforms supported by **.NET 8.0** you dont really need a more precise timer, as
 systems like linux dont have the **15.6 ms** limitation from the start. To allow the usage of QuickTick in cross-platform projects 
-it automatically falls back to the base .net functions on all platforms that are not Windows (10 or higher).
+it automatically falls back to a fallback implementation that is a wrapper around the base .net functions with the same interface.
+
+Since the system API's the QuickTick implementation uses are not available in Windows versions previous to Windows 10 and the fallback implementations
+would also not work due to the **15.6 ms** limitation and therefor if the implementation is used under Windows versions previous to windows 10 a **PlatformNotSupportedException** is thrown.
 
 ## QuickTickTimer Class
 
@@ -29,7 +32,7 @@ public class QuickTickTimer : IDisposable
 
 Inheritance `Object` -> `QuickTickTimer`
 
-Implements `IDisposable`
+Implements `IDisposable`, `IQuickTickTimer`
 
 ### Example Usage
 
@@ -43,6 +46,7 @@ class Program
     static void Main()
     {
         using QuickTickTimer timer = new QuickTickTimer(500);
+        timer.SkipMissedIntervals = false;
         timer.AutoReset = true;
         timer.Elapsed += Timer_Elapsed;
         timer.Start();
@@ -51,23 +55,27 @@ class Program
         timer.Stop();
     }
 
-    private static void Timer_Elapsed(object sender, QuickTickElapsedEventArgs e)
+    private static void TimerElapsed(object? sender, QuickTickElapsedEventArgs elapsedArgs)
     {
-        Console.WriteLine($"Timer elapsed! Scheduled: {e.ScheduledTime:dd.MM.yyyy HH:mm:ss.fff}, Actual: {e.SignalTime:dd.MM.yyyy HH:mm:ss.fff}");
+        Console.WriteLine($"Now: '{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.ffffff}'; " +
+                          $"Time since last tick: '{elapsedArgs.TimeSinceLastInterval.TotalMilliseconds}'; " +
+                          $"Skipped: '{elapsedArgs.SkippedIntervals}';");
     }
 }
 
 // The example displays output like the following:
-    // Timer elapsed! Scheduled: 05.03.2025 18:52:21.120, Actual: 05.03.2025 18:52:21.121
-    // Timer elapsed! Scheduled: 05.03.2025 18:52:21.620, Actual: 05.03.2025 18:52:21.620
-    // Timer elapsed! Scheduled: 05.03.2025 18:52:22.120, Actual: 05.03.2025 18:52:22.120
-    // Timer elapsed! Scheduled: 05.03.2025 18:52:22.620, Actual: 05.03.2025 18:52:22.622
-    // Timer elapsed! Scheduled: 05.03.2025 18:52:23.120, Actual: 05.03.2025 18:52:23.121
-    // Timer elapsed! Scheduled: 05.03.2025 18:52:23.620, Actual: 05.03.2025 18:52:23.620
-    // Timer elapsed! Scheduled: 05.03.2025 18:52:24.120, Actual: 05.03.2025 18:52:24.121
-    // Timer elapsed! Scheduled: 05.03.2025 18:52:24.620, Actual: 05.03.2025 18:52:24.620
-    // Timer elapsed! Scheduled: 05.03.2025 18:52:25.120, Actual: 05.03.2025 18:52:25.120
-    // Timer elapsed! Scheduled: 05.03.2025 18:52:25.620, Actual: 05.03.2025 18:52:25.621
+    // Now: '2025-08-19 11:29:39.882346'; Time since last tick: '4,699'; Skipped: '0';
+    // Now: '2025-08-19 11:29:39.887346'; Time since last tick: '5,0038'; Skipped: '0';
+    // Now: '2025-08-19 11:29:39.892444'; Time since last tick: '5,0977'; Skipped: '0';
+    // Now: '2025-08-19 11:29:39.897339'; Time since last tick: '4,8969'; Skipped: '0';
+    // Now: '2025-08-19 11:29:39.902344'; Time since last tick: '5,0008'; Skipped: '0';
+    // Now: '2025-08-19 11:29:39.907342'; Time since last tick: '5,0019'; Skipped: '0';
+    // Now: '2025-08-19 11:29:39.912508'; Time since last tick: '5,166'; Skipped: '0';
+    // Now: '2025-08-19 11:29:39.917512'; Time since last tick: '5,0029'; Skipped: '0';
+    // Now: '2025-08-19 11:29:39.922342'; Time since last tick: '4,8312'; Skipped: '0';
+    // Now: '2025-08-19 11:29:39.927346'; Time since last tick: '5,0031'; Skipped: '0';
+    // Now: '2025-08-19 11:29:39.932344'; Time since last tick: '4,9945'; Skipped: '0';
+    // Now: '2025-08-19 11:29:39.937572'; Time since last tick: '5,2314'; Skipped: '0';
 ```
 
 ### Remarks
@@ -79,21 +87,22 @@ The timer therefore has no influence on the remaining program and calls like `Th
 
 > [!IMPORTANT]
 > The `QuickTickTimer` class is able to be used cross-platform. However on systems that are not windows it falls back to
-> built in .net functions. Also it falls back to the built in .net function if it runs under a windows earlier that Windows 10 or equivilantly Windows Server 2016.
+> a fallback implementation built on base .net functions, that provides the same interface.
 > For non windows platforms the built-in timers deliver a relatively high precision, as they are not
 > based on the windows timer system and its default timing of ~15.6ms and therefor no specific implementation is needed.
 
 > [!IMPORTANT]
 > The elapsed event is fired on a completion thread. This thread is not the same as the thread that started the timer.
 > Make sure the execution of you elapsed event does not take longer than the interval of the timer or consider 
-> using a decoupling mechanism to process the event on a different thread.
+> using a decoupling mechanism to process the event on a different thread. This is also true for the fallback timer which altough based
+> on `System.Timers.Timer`, which schedules to thread pool has a logic built in the fallback wrap that ques the events on the same thread.
 
 This class implements the `IDisposable` interface. When you are finished using the timer, you should dispose of it to release all associated resources.
 
 > [!Note]
-> The actual timing accuracy of the timer is mostly based on the systems thread scheduler aswell as the systems kernel timing.
+> The actual timing accuracy of the timer is mostly based on the systems thread scheduler aswell as the system's kernel timing.
 > On average the system takes around 300µs to signal the timer thread after the interval finished.
-> On Windows, the thread that waits for the timer and handles the event code runs with the same priority as the thread that created the timer.
+> The thread that waits for the timer and handles the event code normally runs with the `ThreadPriority.Normal`.
 > This is normally fine and doesn’t need to be increased. Raising the priority is only recommended if the system is under heavy load and timing accuracy is noticeably affected.
 > A better solution to inaccurate timing is checking your windows power settings and especially the core parking feature.
 > Core parking can drastically worsen the times the timer thread needs to wake up when beaing signaled. You might want to turn that off.
@@ -105,6 +114,8 @@ This class implements the `IDisposable` interface. When you are finished using t
 >
 > The timer strives to keep the **average interval** as close as possible to the requested value, but actual intervals may vary slightly depending on system load and other conditions.  
 > Typically, deviations are within **±0.6 ms**, though in some cases they may be larger.
+>
+> The fallback timer while accepting sub millisecond intervals doesnt support it due to the nature of `System.Timers.Timer` rounding up to the next full millisecond interval.
 
 ### Constructors
 
@@ -160,8 +171,11 @@ public bool IsQuickTickUsed { get; }
 
 Gets a value indicating whether the high-resolution QuickTick implementation is being used.
 
-When true, the timer is backed by the QuickTickTimerImplementation, which offers higher precision and lower latency on windows.
-When false, the platform does not support QuickTick, and the timer falls back to the QuickTickTimerFallback implementation. (So true on Linux for example)
+> [!Note]
+> Not part of the `IQuickTickTimer` interface; Only available from the class directly
+
+- `true`: The timer is backed by the QuickTickTimerImplementation, which offers higher precision and lower latency on windows.
+- `false`: The platform does not support QuickTick, and the timer falls back to the QuickTickTimerFallback implementation. (So true on Linux for example)
 
 #### Interval
 
@@ -188,6 +202,26 @@ Gets or sets whether the timer should restart after each elapsed event. Default 
 - `true`: The timer restarts automatically.
 - `false`: The timer stops after firing once.
 
+#### Priority
+
+```csharp
+public ThreadPriority Priority { get; set; }
+```
+
+Gets or sets the thread priority for the thread handling the timer events and event code. Default is ThreadPriority.Normal.
+
+#### SkipMissedIntervals
+
+```csharp
+public bool SkipMissedIntervals { get; set; }
+```
+
+Gets or sets whether the timer should skip missed ticks. Default is false.
+
+- `true`: When the timer event fires and the last event is still being processed the event is ignored and the SkippedIntervals counter is increased.
+- `false`: When the timer event fires and the last event is still being processed the event is scheduled immediatly and will start as soon as the running event is finished.
+           Can lead to burst of events if the system or the user event code did have a hickup. 
+ 
 ### Methods
 
 #### Start()
@@ -230,9 +264,9 @@ Occurs when the timer interval has elapsed.
 
 ##### Event Arguments
 
-- `QuickTickElapsedEventArgs`: Contains information about the scheduled and actual firing times.
-    - **`SignalTime`** (`DateTime`): The actual time when the event was triggered. The time is a UTC-Timestamp.
-    - **`ScheduledTime`** (`DateTime`): The originally scheduled time for the timer event. The time is a UTC-Timestamp.  
+- `QuickTickElapsedEventArgs`: Contains information about the current interval of the timer and the SkippedTicks.
+    - **`TimeSinceLastInterval`** (`TimeSpan`): The time since the last event was triggered. If its the first interval it is the time since the start of the timer.
+    - **`SkippedIntervals`** (`long`): The amount of skipped intervals since the timer was last started. Is always zero if `SkipMissedIntervals` is disabled. It is clamped to `long.MaxValue` and doesnt overflow.  
 
 ## QuickTickTiming Class
 
