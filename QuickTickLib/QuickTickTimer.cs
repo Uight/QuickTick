@@ -1,4 +1,5 @@
-﻿namespace QuickTickLib;
+﻿
+namespace QuickTickLib;
 
 public sealed class QuickTickTimer : IQuickTickTimer
 {
@@ -25,6 +26,17 @@ public sealed class QuickTickTimer : IQuickTickTimer
     {
         get => timer.AutoReset;
         set => timer.AutoReset = value;
+    }
+    public bool SkipMissedIntervals 
+    { 
+        get => timer.SkipMissedIntervals; 
+        set => timer.SkipMissedIntervals = value; 
+    }
+
+    public ThreadPriority Priority 
+    { 
+        get => timer.Priority; 
+        set => timer.Priority = value; 
     }
 
     public event QuickTickElapsedEventHandler? Elapsed

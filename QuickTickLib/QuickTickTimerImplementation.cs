@@ -1,4 +1,7 @@
-﻿using System.Runtime.InteropServices;
+﻿// Some parts of the code are inspired by György Kőszeg's HighRes Timer: https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs
+
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace QuickTickLib;
 
@@ -11,12 +14,17 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
     private static readonly IntPtr successCompletionKey = new(1);
 
     private volatile bool autoReset;
+    private volatile bool skipMissedIntervals;
     private volatile bool isRunning;
     private volatile float intervalMs;
     private long intervalTicks;
-    private long nextFireTime;
+    private long nextFireTicks;
+    private long lastFireTicks;
+    private long totalSkippedIntervals;
+    private readonly Stopwatch stopWatch = new();
 
     private Thread? completionThread;
+    private ThreadPriority threadPriority = ThreadPriority.Normal;
     private QuickTickElapsedEventHandler? elapsed;
 
     private bool disposed;
@@ -53,6 +61,25 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         set => autoReset = value;
     }
 
+    public bool SkipMissedIntervals
+    {
+        get => skipMissedIntervals;
+        set => skipMissedIntervals = value;
+    }
+
+    public ThreadPriority Priority
+    {
+        get => threadPriority;
+        set
+        {
+            threadPriority = value;
+            if (completionThread != null && completionThread.IsAlive)
+            {
+                completionThread.Priority = value;
+            }           
+        }
+    }
+
     public QuickTickTimerImplementation(double interval)
     {
         AutoReset = true;
@@ -83,10 +110,13 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         {
             return;
         }
+        stopWatch.Restart();
 
         isRunning = true;
 
-        Interlocked.Exchange(ref nextFireTime, DateTime.UtcNow.Ticks + Interlocked.Read(ref intervalTicks));
+        Interlocked.Exchange(ref nextFireTicks, Interlocked.Read(ref intervalTicks));
+        Interlocked.Exchange(ref totalSkippedIntervals, 0L);
+        Interlocked.Exchange(ref lastFireTicks, 0L);
 
         SetTimer();
 
@@ -124,6 +154,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         {
             Win32Interop.NtCancelWaitCompletionPacket(waitIocpHandle, true);
         }
+        stopWatch.Reset();
     }
 
     public void Dispose()
@@ -163,7 +194,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
 
     private void SetTimer()
     {
-        long dueTime = Interlocked.Read(ref nextFireTime) - DateTime.UtcNow.Ticks; // Calculate absolute expiration
+        long dueTime = Interlocked.Read(ref nextFireTicks) - stopWatch.ElapsedTicks; // Calculate absolute expiration
         dueTime = dueTime < 0 ? 0 : -dueTime; // Ensure valid time
 
         if (!Win32Interop.SetWaitableTimer(timerHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false))
@@ -192,34 +223,62 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
                     isRunning = false;
                     break;
                 }
+                continue;
+            }
+
+            if (lpCompletionKey != successCompletionKey)
+            {
+                continue;
+            }
+
+            var currentTicks = stopWatch.ElapsedTicks;
+            var lastFireTicksLocal = Interlocked.Read(ref lastFireTicks);
+            Interlocked.Exchange(ref lastFireTicks, currentTicks);
+            var skippedIntervals = Interlocked.Read(ref totalSkippedIntervals);
+
+            if (autoReset)
+            {
+                var interval = Interlocked.Read(ref intervalTicks);
+                var nextTicks = Interlocked.Add(ref nextFireTicks, interval);           
+
+                if (skipMissedIntervals)
+                {
+                    while (nextTicks < currentTicks)
+                    {
+                        nextTicks = Interlocked.Add(ref nextFireTicks, interval);
+                        if (skippedIntervals < long.MaxValue)
+                        {
+                            skippedIntervals++;
+                        }
+                    }
+                    Interlocked.Exchange(ref totalSkippedIntervals, skippedIntervals);
+                }
+
+                if (stopWatch.Elapsed.TotalHours >= 1)
+                {
+                    var remaining = nextTicks - currentTicks;
+                    stopWatch.Restart();
+                    Interlocked.Exchange(ref nextFireTicks, remaining);
+                    Interlocked.Exchange(ref lastFireTicks, 0L);
+                }
+
+                SetTimer();
             }
             else
             {
-                if (lpCompletionKey == successCompletionKey)
+                isRunning = false;
+                stopWatch.Reset();
+                if (timerHandle != IntPtr.Zero)
                 {
-                    var actualFireTime = DateTime.UtcNow;
-                    var scheduledFireTime = new DateTime(Interlocked.Read(ref nextFireTime), DateTimeKind.Utc);
-
-                    var elapsedEventArgs = new QuickTickElapsedEventArgs(actualFireTime, scheduledFireTime);
-
-                    if (autoReset)
-                    {
-                        Interlocked.Add(ref nextFireTime, Interlocked.Read(ref intervalTicks));
-                        SetTimer();
-                    }
-                    else
-                    {
-                        isRunning = false;
-                        if (timerHandle != IntPtr.Zero)
-                        {
-                            Win32Interop.CancelWaitableTimer(timerHandle);
-                        }
-                    }
-
-                    var handler = elapsed;
-                    handler?.Invoke(this, elapsedEventArgs);
+                    Win32Interop.CancelWaitableTimer(timerHandle);
                 }
             }
+    
+            var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
+            var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
+
+            var handler = elapsed;
+            handler?.Invoke(this, elapsedEventArgs);
         }
     }
 }
