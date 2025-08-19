@@ -36,7 +36,7 @@ Implements `IDisposable`, `IQuickTickTimer`
 
 ### Example Usage
 
-The following example shows the usage of the QuickTickTimer with an interval of 500ms.
+The following example shows the usage of the QuickTickTimer with an interval of 500 ms.
 
 ```csharp
 using QuickTickLib;
@@ -82,14 +82,14 @@ class Program
 
 QuickTickTimer is a timer based on IO Completion Ports for high-precision timing.
 Using the windows function `NtAssociateWaitCompletionPacket` it can go below the default 
-windows timer resolution of 15.6ms without needing to set the system clock rate using `TimeBeginPeriod`.
+windows timer resolution of 15.6 ms without needing to set the system clock rate using `TimeBeginPeriod`.
 The timer therefore has no influence on the remaining program and calls like `Thread.Sleep` or `Task.Delay` are not affected.
 
 > [!IMPORTANT]
 > The `QuickTickTimer` class is able to be used cross-platform. However on systems that are not windows it falls back to
 > a fallback implementation built on base .net functions, that provides the same interface.
 > For non windows platforms the built-in timers deliver a relatively high precision, as they are not
-> based on the windows timer system and its default timing of ~15.6ms and therefor no specific implementation is needed.
+> based on the windows timer system and its default timing of ~15.6 ms and therefor no specific implementation is needed.
 
 > [!IMPORTANT]
 > The elapsed event is fired on a completion thread. This thread is not the same as the thread that started the timer.
@@ -101,7 +101,7 @@ This class implements the `IDisposable` interface. When you are finished using t
 
 > [!Note]
 > The actual timing accuracy of the timer is mostly based on the systems thread scheduler aswell as the system's kernel timing.
-> On average the system takes around 300µs to signal the timer thread after the interval finished.
+> On average the system takes around 300 µs to signal the timer thread after the interval finished.
 > The thread that waits for the timer and handles the event code normally runs with the `ThreadPriority.Normal`.
 > This is normally fine and doesn’t need to be increased. Raising the priority is only recommended if the system is under heavy load and timing accuracy is noticeably affected.
 > A better solution to inaccurate timing is checking your windows power settings and especially the core parking feature.
@@ -276,13 +276,14 @@ Occurs when the timer interval has elapsed.
 Namespace: QuickTickLib
 
 This is a high resolution timer based on the `QuickTickTiming.Sleep` function aswell as the HighResTimer by György Kőszeg [found here](https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs).
-The timer provides the same interface as the normal QuickTickTimer functions completly different internally. In short the timer is a loop that always checks the time
-and according to the remaining time to the next interval either sleeps, yields the thread, or spin waits. It therefore needs more CPU than the regular timer, but
+The timer provides the same interface as the normal QuickTickTimer but functions completly different internally. In short the timer is a loop that always checks the time
+and according to the remaining time to the next interval either sleeps, yields the thread or spin waits. It therefore needs more CPU than the regular timer, but
 also has a higher precision in the timing events.
-For timers with intervals under 15.6ms and over about 2.5ms this timer behaves like the HighResTimer by György Kőszeg but needs way less CPU. For all other intervals it basically behaves the same.
+
+For timers with intervals under 15.6 ms and over about 2.5 ms this timer behaves like the HighResTimer by György Kőszeg but needs way less CPU. For all other intervals it basically behaves the same.
 
 > [!Note]
-> By design this timer uses a whole thread if you set a interval below around 2.5ms as it then doesn't sleep and instead spin waits only. 
+> By design this timer uses a whole thread if you set a interval below around 2.5 ms as it then doesn't sleep and instead spin waits only. 
 
 ```csharp
 public class HighResQuickTickTimer : IDisposable, IQuickTickTimer
@@ -300,8 +301,8 @@ This timer always starts with `ThreadPriority.Highest`.
 
 #### IsQuickTickUsed
 
-Does not implement this property as it isnt part of the IQuickTickTimer interface. Also there is no fallback implementation for this timer. Just
-the way it sleeps is switched.
+Does not implement this property as it isn't part of the IQuickTickTimer interface. Also there is no fallback implementation for this timer. Just
+the way it sleeps is switched on the different operating systems.
 
 #### IsQuickTickUsed
 
@@ -309,15 +310,15 @@ the way it sleeps is switched.
 public double SleepThreshold { get; set }
 ```
 
-Gets or sets the value used to determine when to start sleeping between timer ticks. Default is 2.0ms;
+Gets or sets the value used to determine when to start sleeping between timer ticks. Default is 2.0 ms;
 You can increase the value to improve timing accuracy but this will cost more CPU.
 
 > [!Note]
-> If a sleep is to be performed a function called `MinimalSleep` sleep is called. This sleeps for 1ms using `Thread.Sleep()` under non windows systems
-> and for 500µs using a special `QuickTickTiming.QuickTickSleep()` function under windows.
-> Testing showed, that in both cases the actual sleep time stays under 2.0ms in over 99% of all cases which is why 2.0 is the Default sleep time.
+> If a sleep is to be performed a function called `MinimalSleep` sleep is called. This sleeps for 1 ms using `Thread.Sleep()` under non windows systems
+> and for 500 µs using a special `QuickTickTiming.QuickTickSleep()` function under windows.
+> Testing showed, that in both cases the actual sleep time stays under 2.0 ms in over 99% of all cases which is why 2.0 ms is the Default sleep time.
 > Testing was performed under 3 systems (Win 11, Ubuntu 22.04 LTS aswell as Android 15 using .net 8.0)
-> An even safer value is 2.5ms as in testing 99.9% of all minimal sleep timings stayed under 2.5ms.
+> An even safer value is 2.5 ms as in testing 99.9% of all minimal sleep timings stayed under 2.5 ms.
 
 > [!Note]
 > Not part of the `IQuickTickTimer` interface; Only available from the class directly
@@ -347,7 +348,7 @@ public static void Sleep(int millisecondsTimeout)
 ```
 
 Blocks the current thread for the specified number of milliseconds.
-If the timeout time is less than or equal to 0ms, the function will behave the same as `Thread.Sleep()` 
+If the timeout time is less than or equal to 0 ms, the function will behave the same as `Thread.Sleep()` 
 will in this situation.
 
 ##### Exceptions
