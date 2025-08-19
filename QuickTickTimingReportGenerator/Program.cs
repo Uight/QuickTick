@@ -17,7 +17,6 @@ class Program
         QuestPDF.Settings.License = LicenseType.Community;
 
         var config = TestConfig.LoadConfig("config.json");
-        Thread.CurrentThread.Priority = config.ThreadPriority;
 
         var allResults = new List<TimingTestResult>();
 
@@ -45,7 +44,7 @@ class Program
 
             var timerMonitor = new CPUMonitor();
             timerMonitor.Start();
-            var timerSamples = await RunQuickTickTimerTest(duration, iterations);
+            var timerSamples = await RunQuickTickTimerTest(duration, iterations, false, config.ThreadPriority);
             timerMonitor.Stop();
             var timerCpuUsage = timerMonitor.GetAverageCpuUsage();
             timerMonitor.Dispose();     
@@ -55,6 +54,20 @@ class Program
 
             if (config.IncludeCompareToHiResTimer)
             {
+                Thread.Sleep(500);
+                // HiResTimer test
+                Console.WriteLine($"Running QuickTickHighResTimer test for {iterations} ticks with {duration}ms...");
+
+                var quickTickHighResTimerMonitor = new CPUMonitor();
+                quickTickHighResTimerMonitor.Start();
+                var quickTickHighResSamples = await RunQuickTickTimerTest(duration, iterations, true);
+                quickTickHighResTimerMonitor.Stop();
+                var quickTickHighResTimerCpuUsage = quickTickHighResTimerMonitor.GetAverageCpuUsage();
+                quickTickHighResTimerMonitor.Dispose();
+
+                allResults.Add(new TimingTestResult($"QuickTickHighResTimer {duration}ms", quickTickHighResSamples));
+                DrawHistogram(quickTickHighResSamples, Path.Combine(reportDir, $"histogram_QuickTickHighResTimer_{duration}ms.png"), duration, quickTickHighResTimerCpuUsage);
+
                 Thread.Sleep(500);
                 // HiResTimer test
                 Console.WriteLine($"Running HiResTimer test for {iterations} ticks with {duration}ms...");
@@ -137,7 +150,7 @@ class Program
         return samples;
     }
 
-    static Task<List<double>> RunQuickTickTimerTest(double intervalMs, int eventsToCapture)
+    static Task<List<double>> RunQuickTickTimerTest(double intervalMs, int eventsToCapture, bool useHighRes, ThreadPriority timerPriority = ThreadPriority.Highest)
     {
         var tcs = new TaskCompletionSource<List<double>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var samples = new List<double>();
@@ -147,10 +160,25 @@ class Program
 
         int progressInterval = Math.Max(1, eventsToCapture / 10);
 
-        var timer = new QuickTickTimer(intervalMs)
+        IQuickTickTimer timer;
+        if (useHighRes)
         {
-            AutoReset = true
-        };
+            timer = new HighResQuickTickTimer(intervalMs)
+            {
+                AutoReset = true,
+                SkipMissedIntervals = false,
+                Priority = timerPriority,
+            };
+        }
+        else
+        {
+            timer = new QuickTickTimer(intervalMs)
+            {
+                AutoReset = true,
+                SkipMissedIntervals = false,
+                Priority = timerPriority,
+            };
+        }
 
         timer.Elapsed += (_, _) =>
         {
@@ -388,6 +416,7 @@ class Program
                     {
                         var sleep = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Sleep"));
                         var timer = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Timer"));
+                        var quickTickHighRes = group.FirstOrDefault(r => r.Label.StartsWith("QuickTickHighResTimer"));
                         var hirestimer = group.FirstOrDefault(r => r.Label.StartsWith("HiResTimer"));
 
                         col.Item().PageBreak();
@@ -410,6 +439,17 @@ class Program
                             col.Item().Text($"Samples: {timer.Samples.Count}, Min: {min:F3} ms, Max: {max:F3} ms, Mean: {mean:F3} ms, StdDev: {stddev:F3} ms");
 
                             var imgPath = Path.Combine(reportDir, $"histogram_QuickTickTimer_{group.Key}ms.png");
+                            if (File.Exists(imgPath))
+                                col.Item().Image(Image.FromFile(imgPath)).FitWidth();
+                        }
+
+                        if (quickTickHighRes != null)
+                        {
+                            var (min, max, mean, stddev) = GetStats(quickTickHighRes.Samples);
+                            col.Item().Text(quickTickHighRes.Label).FontSize(16).Bold();
+                            col.Item().Text($"Samples: {quickTickHighRes.Samples.Count}, Min: {min:F3} ms, Max: {max:F3} ms, Mean: {mean:F3} ms, StdDev: {stddev:F3} ms");
+
+                            var imgPath = Path.Combine(reportDir, $"histogram_QuickTickHighResTimer_{group.Key}ms.png");
                             if (File.Exists(imgPath))
                                 col.Item().Image(Image.FromFile(imgPath)).FitWidth();
                         }
