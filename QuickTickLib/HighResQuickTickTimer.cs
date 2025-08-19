@@ -10,6 +10,8 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     private volatile bool running;
     private volatile bool skipMissedIntervals;
     private volatile float intervalMs;
+    private volatile float sleepThreshold = 2.0f; // 2.0f is a solid but conservative value aimed at the lowest possible cpu usage for this timer.
+                                                  // 2.5f is a value that would use a bit more cpu but would safely hold the specified time in over 99.9% of all cases (tested on 3 different machines).
     private long intervalTicks;
     private ThreadPriority threadPriority = ThreadPriority.Highest;
     private CancellationTokenSource? cancellationTokenSource;
@@ -63,6 +65,24 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     {
         add => elapsed += value;
         remove => elapsed -= value;
+    }
+
+    /// <summary>
+    /// Defines the time that must be available towards the next timer iteration before the system starts to sleep.
+    /// Increasing this time can lead to better timing but increases CPU usage as the code will then SpinWait instead.
+    /// </summary>
+    public double SleepThreshold
+    {
+        get => sleepThreshold;
+        set
+        {
+            if (value > int.MaxValue || value <= 1.0 || double.IsNaN(value))
+            {
+                throw new ArgumentOutOfRangeException("SleepThreshold must be greater than 1.0 and smaller than int.MaxValue");
+            }
+
+            sleepThreshold = (float)value;
+        }
     }
 
     public HighResQuickTickTimer(double interval)
@@ -120,7 +140,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
                     break;
                 }
 
-                if (diffTicks >= TimeSpan.TicksPerMillisecond * 2)
+                if (diffTicks >= TimeSpan.TicksPerMillisecond * sleepThreshold)
                 {
                     QuickTickTiming.MinimalSleep();
                 }
