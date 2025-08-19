@@ -27,7 +27,7 @@ Provides a high-resolution timer using IO Completion Ports (IOCP) and `NtAssocia
 precise timing events under windows. Similar in use to the `System.Timers.Timer` class.
 
 ```csharp
-public class QuickTickTimer : IDisposable
+public class QuickTickTimer : IDisposable, IQuickTickTimer
 ```
 
 Inheritance `Object` -> `QuickTickTimer`
@@ -267,6 +267,61 @@ Occurs when the timer interval has elapsed.
 - `QuickTickElapsedEventArgs`: Contains information about the current interval of the timer and the SkippedTicks.
     - **`TimeSinceLastInterval`** (`TimeSpan`): The time since the last event was triggered. If its the first interval it is the time since the start of the timer.
     - **`SkippedIntervals`** (`long`): The amount of skipped intervals since the timer was last started. Is always zero if `SkipMissedIntervals` is disabled. It is clamped to `long.MaxValue` and doesnt overflow.  
+
+
+## HighResQuickTickTimer Class
+
+### Definition
+
+Namespace: QuickTickLib
+
+This is a high resolution timer based on the `QuickTickTiming.Sleep` function aswell as the HighResTimer by György Kőszeg [found here](https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs).
+The timer provides the same interface as the normal QuickTickTimer functions completly different internally. In short the timer is a loop that always checks the time
+and according to the remaining time to the next interval either sleeps, yields the thread, or spin waits. It therefore needs more CPU than the regular timer, but
+also has a higher precision in the timing events.
+For timers with intervals under 15.6ms and over about 2.5ms this timer behaves like the HighResTimer by György Kőszeg but needs way less CPU. For all other intervals it basically behaves the same.
+
+> [!Note]
+> By design this timer uses a whole thread if you set a interval below around 2.5ms as it then doesn't sleep and instead spin waits only. 
+
+```csharp
+public class HighResQuickTickTimer : IDisposable, IQuickTickTimer
+```
+
+Inheritance `Object` -> `HighResQuickTickTimer`
+
+Implements `IDisposable`, `IQuickTickTimer`
+
+### Differences to QuickTickTimer
+
+#### Priority
+
+This timer always starts with `ThreadPriority.Highest`.
+
+#### IsQuickTickUsed
+
+Does not implement this property as it isnt part of the IQuickTickTimer interface. Also there is no fallback implementation for this timer. Just
+the way it sleeps is switched.
+
+#### IsQuickTickUsed
+
+```csharp
+public double SleepThreshold { get; set }
+```
+
+Gets or sets the value used to determine when to start sleeping between timer ticks. Default is 2.0ms;
+You can increase the value to improve timing accuracy but this will cost more CPU.
+
+> [!Note]
+> If a sleep is to be performed a function called `MinimalSleep` sleep is called. This sleeps for 1ms using `Thread.Sleep()` under non windows systems
+> and for 500µs using a special `QuickTickTiming.QuickTickSleep()` function under windows.
+> Testing showed, that in both cases the actual sleep time stays under 2.0ms in over 99% of all cases which is why 2.0 is the Default sleep time.
+> Testing was performed under 3 systems (Win 11, Ubuntu 22.04 LTS aswell as Android 15 using .net 8.0)
+> An even safer value is 2.5ms as in testing 99.9% of all minimal sleep timings stayed under 2.5ms.
+
+> [!Note]
+> Not part of the `IQuickTickTimer` interface; Only available from the class directly
+
 
 ## QuickTickTiming Class
 
