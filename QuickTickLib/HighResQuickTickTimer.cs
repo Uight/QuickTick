@@ -6,6 +6,8 @@ namespace QuickTickLib;
 
 public sealed class HighResQuickTickTimer : IQuickTickTimer
 {
+    private readonly long ticksPerMillisecond = Stopwatch.Frequency / 1000;
+
     private volatile bool autoReset;
     private volatile bool running;
     private volatile bool skipMissedIntervals;
@@ -29,7 +31,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
             }
 
             intervalMs = (float)value;
-            intervalTicks = (long)(intervalMs * TimeSpan.TicksPerMillisecond);
+            intervalTicks = (long)(intervalMs * ticksPerMillisecond);
         }
     }
 
@@ -140,11 +142,11 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
                     break;
                 }
 
-                if (diffTicks >= TimeSpan.TicksPerMillisecond * sleepThreshold)
+                if (diffTicks >= ticksPerMillisecond * sleepThreshold)
                 {
                     QuickTickTiming.MinimalSleep();
                 }
-                else if (diffTicks >= TimeSpan.TicksPerMillisecond)
+                else if (diffTicks >= ticksPerMillisecond)
                 {
                     Thread.Yield();
                 }
