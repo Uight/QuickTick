@@ -17,6 +17,15 @@ it automatically falls back to a fallback implementation that is a wrapper aroun
 Since the system API's the QuickTick implementation uses are not available in Windows versions previous to Windows 10 and the fallback implementations
 would also not work due to the **15.6 ms** limitation and therefor if the implementation is used under Windows versions previous to windows 10 a **PlatformNotSupportedException** is thrown.
 
+## Performance Reports
+
+This are some performance reports of the QuickTickTiming.Sleep() Function aswell as for the QuickTickTimer and the HighResQuickTickTimer including a comparison to 
+the HighResTimer by György Kőszeg [found here](https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs)
+
+[Win 11 Energy Saving Normal Prio](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Win11_NormalPrio_EnergySaving.pdf)  
+[Win 11 Ultimate Power Highest Prio](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Win11_HighestPrio_UltimatePower.pdf)  
+[Ubuntu 24.04.3 LTS Highest Prio](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Ubuntu_24_04_3_HighestPrio.pdf)
+
 ## QuickTickTimer Class
 
 ### Definition
