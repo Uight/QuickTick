@@ -7,7 +7,7 @@ public class TestConfig
 {
     [JsonConverter(typeof(StringEnumConverter))]
     public ThreadPriority ThreadPriority { get; set; } = ThreadPriority.Normal;
-    public List<int> IntervalsMs { get; set; } = [];
+    public List<double> IntervalsMs { get; set; } = [];
     public int TimeInSecondsPerTest { get; set; } = 10;
     public bool IncludeCompareToHiResTimer { get; set; } = true;
 

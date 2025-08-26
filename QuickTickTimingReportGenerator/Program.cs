@@ -22,7 +22,7 @@ class Program
 
         foreach (var duration in config.IntervalsMs)
         {
-            var iterations = config.TimeInSecondsPerTest * 1000 / duration;
+            var iterations = (int)(config.TimeInSecondsPerTest * 1000 / duration);
 
             Thread.Sleep(500);
             // QuickTick Sleep
@@ -30,13 +30,13 @@ class Program
 
             var sleepMonitor = new CPUMonitor();
             sleepMonitor.Start();
-            var sleepamples = await RunQuickTickSleepTest(duration, iterations);
+            var sleepSamples = RunQuickTickSleepTest(duration, iterations);
             sleepMonitor.Stop();
             var sleepCpuUsage = sleepMonitor.GetAverageCpuUsage();
             sleepMonitor.Dispose();    
             
-            allResults.Add(new TimingTestResult($"QuickTick Sleep {duration}ms", sleepamples));
-            DrawHistogram(sleepamples, Path.Combine(reportDir, $"histogram_QuickTickSleep_{duration}ms.png"), duration, sleepCpuUsage);
+            allResults.Add(new TimingTestResult($"QuickTick Sleep {duration}ms", sleepSamples));
+            DrawHistogram(sleepSamples, Path.Combine(reportDir, $"histogram_QuickTickSleep_{duration}ms.png"), duration, sleepCpuUsage);
 
             Thread.Sleep(500);
             // QuickTick Timer
@@ -128,15 +128,23 @@ class Program
         return tcs.Task;
     }
 
-    static async Task<List<double>> RunQuickTickSleepTest(int durationMs, int iterations)
+    static List<double> RunQuickTickSleepTest(double durationMs, int iterations)
     {
+        int sleepMs = (int)Math.Round(durationMs);
+
+        // If the double was not exactly representable
+        if (Math.Abs(sleepMs - durationMs) > double.Epsilon)
+        {
+            Console.WriteLine($"Requested {durationMs:F3} ms, rounded to {sleepMs} ms; Sleep does not support sub millisecond timings");
+        }
+
         var samples = new List<double>();
         int progressInterval = Math.Max(1, iterations / 10);
 
         for (int i = 0; i < iterations; i++)
         {
             var sw = Stopwatch.StartNew();
-            await QuickTickTiming.Delay(durationMs);
+            QuickTickTiming.Sleep(sleepMs);
             sw.Stop();
             samples.Add(sw.Elapsed.TotalMilliseconds);
 
@@ -194,16 +202,9 @@ class Program
 
             if (counter == eventsToCapture)
             {
-                try
-                {
-                    timer.Stop();
-                    timer.Dispose();
-                    tcs.SetResult(samples);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex);
-                }
+                timer.Stop();
+                timer.Dispose();
+                tcs.SetResult(samples);
             }
 
             if (counter % progressInterval == 0)
