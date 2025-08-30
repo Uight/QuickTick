@@ -2,5 +2,6 @@
   "ThreadPriority": "Highest",
   "IntervalsMs": [ 1, 5, 50 ],
   "TimeInSecondsPerTest": 10,
-  "IncludeCompareToHiResTimer": true
+  "IncludeCompareToHiResTimer": true,
+  "WarmupIntervals":  25
 }

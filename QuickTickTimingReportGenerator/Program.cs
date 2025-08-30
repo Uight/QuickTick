@@ -30,7 +30,7 @@ class Program
 
             var sleepMonitor = new CPUMonitor();
             sleepMonitor.Start();
-            var sleepSamples = RunQuickTickSleepTest(duration, iterations);
+            var sleepSamples = RunQuickTickSleepTest(duration, iterations, config.WarmupIntervals);
             sleepMonitor.Stop();
             var sleepCpuUsage = sleepMonitor.GetAverageCpuUsage();
             sleepMonitor.Dispose();    
@@ -44,7 +44,7 @@ class Program
 
             var timerMonitor = new CPUMonitor();
             timerMonitor.Start();
-            var timerSamples = await RunQuickTickTimerTest(duration, iterations, false, config.ThreadPriority);
+            var timerSamples = await RunQuickTickTimerTest(duration, iterations, false, config.WarmupIntervals, config.ThreadPriority);
             timerMonitor.Stop();
             var timerCpuUsage = timerMonitor.GetAverageCpuUsage();
             timerMonitor.Dispose();     
@@ -55,12 +55,12 @@ class Program
             if (config.IncludeCompareToHiResTimer)
             {
                 Thread.Sleep(500);
-                // HiResTimer test
+                // QuickTickHighResTimer test
                 Console.WriteLine($"Running QuickTickHighResTimer test for {iterations} ticks with {duration}ms...");
 
                 var quickTickHighResTimerMonitor = new CPUMonitor();
                 quickTickHighResTimerMonitor.Start();
-                var quickTickHighResSamples = await RunQuickTickTimerTest(duration, iterations, true);
+                var quickTickHighResSamples = await RunQuickTickTimerTest(duration, iterations, true, config.WarmupIntervals, config.ThreadPriority);
                 quickTickHighResTimerMonitor.Stop();
                 var quickTickHighResTimerCpuUsage = quickTickHighResTimerMonitor.GetAverageCpuUsage();
                 quickTickHighResTimerMonitor.Dispose();
@@ -69,7 +69,7 @@ class Program
                 DrawHistogram(quickTickHighResSamples, Path.Combine(reportDir, $"histogram_QuickTickHighResTimer_{duration}ms.png"), duration, quickTickHighResTimerCpuUsage);
 
                 Thread.Sleep(500);
-                // HiResTimer test
+                // KGySoft.HiResTimer test
                 Console.WriteLine($"Running HiResTimer test for {iterations} ticks with {duration}ms...");
 
                 var hiResTimerMonitor = new CPUMonitor();
@@ -79,7 +79,7 @@ class Program
                 var hiResTimerCpuUsage = hiResTimerMonitor.GetAverageCpuUsage();
                 hiResTimerMonitor.Dispose();
 
-                allResults.Add(new TimingTestResult($"HiResTimer {duration}ms", hiResSamples));
+                allResults.Add(new TimingTestResult($"KGySoft.HiResTimer {duration}ms", hiResSamples));
                 DrawHistogram(hiResSamples, Path.Combine(reportDir, $"histogram_HiResTimer_{duration}ms.png"), duration, hiResTimerCpuUsage);
             }
         }
@@ -88,16 +88,16 @@ class Program
         File.WriteAllText(Path.Combine(reportDir, "system_info.txt"), systemInfo);
 
         var pdfPath = Path.Combine(reportDir, "QuickTick_Report.pdf");
-        GeneratePdfReport(pdfPath, allResults, reportDir, systemInfo);
+        GeneratePdfReport(pdfPath, allResults, reportDir, systemInfo, config);
 
         Console.WriteLine($"Report generated at: {pdfPath}");
     }
 
-    static Task<List<double>> RunHiResTimerTest(double intervalMs, int eventsToCapture)
+    static Task<List<double>> RunHiResTimerTest(double intervalMs, int eventsToCapture, int warmUpIterations = 25)
     {
         var tcs = new TaskCompletionSource<List<double>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var samples = new List<double>();
-        int counter = 0;
+        int counter = -warmUpIterations;
         var last = Stopwatch.GetTimestamp();
         var freq = Stopwatch.Frequency;
         int progressInterval = Math.Max(1, eventsToCapture / 10);
@@ -110,7 +110,14 @@ class Program
             var delta = (now - last) * 1000.0 / freq;
             last = now;
 
-            if (counter > 0) samples.Add(delta);
+            //Ignore Warmup phase; or first iteration if warmUp is zero
+            if (counter <= 0)
+            {
+                counter++;
+                return;
+            }
+
+            samples.Add(delta);
 
             if (counter == eventsToCapture)
             {
@@ -119,7 +126,9 @@ class Program
             }
 
             if (counter % progressInterval == 0)
+            {
                 Console.WriteLine($"HiResTimer Progress: {counter * 100 / eventsToCapture}%");
+            }
 
             counter++;
         };
@@ -128,7 +137,7 @@ class Program
         return tcs.Task;
     }
 
-    static List<double> RunQuickTickSleepTest(double durationMs, int iterations)
+    static List<double> RunQuickTickSleepTest(double durationMs, int iterations, int warmUpIterations = 25)
     {
         int sleepMs = (int)Math.Round(durationMs);
 
@@ -141,11 +150,17 @@ class Program
         var samples = new List<double>();
         int progressInterval = Math.Max(1, iterations / 10);
 
-        for (int i = 0; i < iterations; i++)
+        for (int i = -warmUpIterations; i < iterations; i++)
         {
             var sw = Stopwatch.StartNew();
             QuickTickTiming.Sleep(sleepMs);
             sw.Stop();
+
+            if (i < 0)
+            {
+                continue;
+            }
+
             samples.Add(sw.Elapsed.TotalMilliseconds);
 
             if (i % progressInterval == 0)
@@ -158,11 +173,11 @@ class Program
         return samples;
     }
 
-    static Task<List<double>> RunQuickTickTimerTest(double intervalMs, int eventsToCapture, bool useHighRes, ThreadPriority timerPriority = ThreadPriority.Highest)
+    static Task<List<double>> RunQuickTickTimerTest(double intervalMs, int eventsToCapture, bool useHighRes, int warmUpIterations = 25, ThreadPriority timerPriority = ThreadPriority.Normal)
     {
         var tcs = new TaskCompletionSource<List<double>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var samples = new List<double>();
-        var counter = 0;
+        var counter = -warmUpIterations;
         var last = Stopwatch.GetTimestamp();
         var stopwatchFreq = Stopwatch.Frequency;
 
@@ -194,11 +209,14 @@ class Program
             var delta = (now - last) * 1000.0 / stopwatchFreq;
             last = now;
 
-            // Ignore the first interval as it might be delayed from Start()
-            if (counter > 0)
+            //Ignore Warmup phase; or first iteration if warmUp is zero
+            if (counter <= 0)
             {
-                samples.Add(delta);
+                counter++;
+                return;
             }
+
+            samples.Add(delta);
 
             if (counter == eventsToCapture)
             {
@@ -397,7 +415,7 @@ class Program
         }
     }
 
-    static void GeneratePdfReport(string path, List<TimingTestResult> results, string reportDir, string systemInfo)
+    static void GeneratePdfReport(string path, List<TimingTestResult> results, string reportDir, string systemInfo, TestConfig config)
     {
         Document.Create(container =>
         {
@@ -410,6 +428,11 @@ class Program
                 {
                     col.Item().Text("System Information:").Bold();
                     col.Item().Text(systemInfo);
+                    col.Item().Text(string.Empty);
+                    col.Item().Text("TestConfig:").Bold();
+                    col.Item().Text($"Time for each Test: {config.TimeInSecondsPerTest} s");
+                    col.Item().Text($"Priority (used for QuickTickTimers): {config.ThreadPriority}");
+                    col.Item().Text($"Warmup phase: {config.WarmupIntervals} intervals");
 
                     var grouped = results.GroupBy(r => r.Label.Split(' ')[^1].Replace("ms", ""));
 
@@ -418,7 +441,7 @@ class Program
                         var sleep = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Sleep"));
                         var timer = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Timer"));
                         var quickTickHighRes = group.FirstOrDefault(r => r.Label.StartsWith("QuickTickHighResTimer"));
-                        var hirestimer = group.FirstOrDefault(r => r.Label.StartsWith("HiResTimer"));
+                        var hirestimer = group.FirstOrDefault(r => r.Label.StartsWith("KGySoft.HiResTimer"));
 
                         col.Item().PageBreak();
 
