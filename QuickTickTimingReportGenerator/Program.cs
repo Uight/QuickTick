@@ -22,7 +22,7 @@ class Program
 
         foreach (var duration in config.IntervalsMs)
         {
-            var iterations = (int)(config.TimeInSecondsPerTest * 1000 / duration);
+            var iterations = (int)(config.TimeInSecondsPerTest * 1000 / Math.Max(0.5 , duration));
 
             Thread.Sleep(500);
             // QuickTick Sleep
