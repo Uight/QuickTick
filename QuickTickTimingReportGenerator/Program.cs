@@ -32,7 +32,7 @@ class Program
 
                 var sleepMonitor = new CPUMonitor();
                 sleepMonitor.Start();
-                var sleepSamples = RunQuickTickSleepTest(duration, iterations, config.WarmupIntervals);
+                var sleepSamples = RunQuickTickSleepTest(duration, iterations, config.ThreadPriority, config.WarmupIntervals);
                 sleepMonitor.Stop();
                 var sleepCpuUsage = sleepMonitor.GetAverageCpuUsage();
                 sleepMonitor.Dispose();
@@ -49,7 +49,7 @@ class Program
 
                 var internalSleepMonitor = new CPUMonitor();
                 internalSleepMonitor.Start();
-                var internalSleepSamples = RunInternalQuickTickSleepTest(duration, iterations, config.WarmupIntervals);
+                var internalSleepSamples = RunInternalQuickTickSleepTest(duration, iterations, config.ThreadPriority, config.WarmupIntervals);
                 internalSleepMonitor.Stop();
                 var sleepCpuUsage = internalSleepMonitor.GetAverageCpuUsage();
                 internalSleepMonitor.Dispose();
@@ -163,8 +163,12 @@ class Program
         return tcs.Task;
     }
 
-    static List<double> RunQuickTickSleepTest(double durationMs, int iterations, int warmUpIterations = 25)
+    static List<double> RunQuickTickSleepTest(double durationMs, int iterations, ThreadPriority priority, int warmUpIterations = 25)
     {
+        var originalThreadPriority = Thread.CurrentThread.Priority;
+        Thread.CurrentThread.Priority = priority;
+        Thread.Sleep(100);
+
         int sleepMs = (int)Math.Round(durationMs);
 
         // If the double was not exactly representable
@@ -196,11 +200,17 @@ class Program
         }
 
         Console.WriteLine("Progress: 100% (done)");
+        Thread.CurrentThread.Priority = originalThreadPriority;
+
         return samples;
     }
 
-    static List<double> RunInternalQuickTickSleepTest(double durationMs, int iterations, int warmUpIterations = 25)
+    static List<double> RunInternalQuickTickSleepTest(double durationMs, int iterations, ThreadPriority priority, int warmUpIterations = 25)
     {
+        var originalThreadPriority = Thread.CurrentThread.Priority;
+        Thread.CurrentThread.Priority = priority;
+        Thread.Sleep(100);
+
         var sleepTicks = (int)(TimeSpan.TicksPerMillisecond * durationMs);
 
         var samples = new List<double>();
@@ -226,6 +236,8 @@ class Program
         }
 
         Console.WriteLine("Progress: 100% (done)");
+        Thread.CurrentThread.Priority = originalThreadPriority;
+
         return samples;
     }
 
@@ -487,7 +499,7 @@ class Program
                     col.Item().Text(string.Empty);
                     col.Item().Text("TestConfig:").Bold();
                     col.Item().Text($"Time for each Test: {config.TimeInSecondsPerTest} s");
-                    col.Item().Text($"Priority (used for QuickTickTimers): {config.ThreadPriority}");
+                    col.Item().Text($"Priority (used QuickTick Operations): {config.ThreadPriority}");
                     col.Item().Text($"Warmup phase: {config.WarmupIntervals} intervals");
 
                     var grouped = results.GroupBy(r => r.Label.Split(' ')[^1].Replace("ms", ""));
