@@ -41,6 +41,23 @@ class Program
                 DrawHistogram(sleepSamples, Path.Combine(reportDir, $"histogram_QuickTickSleep_{duration}ms.png"), duration, sleepCpuUsage);
             }
 
+            if (config.EnabledTests[TestType.Internal_QuickTickSleep])
+            {
+                Thread.Sleep(500);
+                // Internal QuickTick Sleep
+                Console.WriteLine($"Running Internal QuickTick Sleep test for {iterations} iterations with {duration}ms...");
+
+                var internalSleepMonitor = new CPUMonitor();
+                internalSleepMonitor.Start();
+                var internalSleepSamples = RunInternalQuickTickSleepTest(duration, iterations, config.WarmupIntervals);
+                internalSleepMonitor.Stop();
+                var sleepCpuUsage = internalSleepMonitor.GetAverageCpuUsage();
+                internalSleepMonitor.Dispose();
+
+                allResults.Add(new TimingTestResult($"Internal_QuickTick Sleep {duration}ms", internalSleepSamples));
+                DrawHistogram(internalSleepSamples, Path.Combine(reportDir, $"histogram_internal_QuickTickSleep_{duration}ms.png"), duration, sleepCpuUsage);
+            }
+
             if (config.EnabledTests[TestType.QuickTickTimer])
             {
                 Thread.Sleep(500);
@@ -163,6 +180,36 @@ class Program
         {
             var sw = Stopwatch.StartNew();
             QuickTickTiming.Sleep(sleepMs);
+            sw.Stop();
+
+            if (i < 0)
+            {
+                continue;
+            }
+
+            samples.Add(sw.Elapsed.TotalMilliseconds);
+
+            if (i % progressInterval == 0)
+            {
+                Console.WriteLine($"Progress: {i * 100 / iterations}% ({i}/{iterations})");
+            }
+        }
+
+        Console.WriteLine("Progress: 100% (done)");
+        return samples;
+    }
+
+    static List<double> RunInternalQuickTickSleepTest(double durationMs, int iterations, int warmUpIterations = 25)
+    {
+        var sleepTicks = (int)(TimeSpan.TicksPerMillisecond * durationMs);
+
+        var samples = new List<double>();
+        int progressInterval = Math.Max(1, iterations / 10);
+
+        for (int i = -warmUpIterations; i < iterations; i++)
+        {
+            var sw = Stopwatch.StartNew();
+            QuickTickTiming.QuickTickSleep(sleepTicks);
             sw.Stop();
 
             if (i < 0)
@@ -448,6 +495,7 @@ class Program
                     foreach (var group in grouped)
                     {
                         var sleep = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Sleep"));
+                        var internalSleep = group.FirstOrDefault(r => r.Label.StartsWith("Internal_QuickTick Sleep"));
                         var timer = group.FirstOrDefault(r => r.Label.StartsWith("QuickTick Timer"));
                         var quickTickHighRes = group.FirstOrDefault(r => r.Label.StartsWith("QuickTickHighResTimer"));
                         var hirestimer = group.FirstOrDefault(r => r.Label.StartsWith("KGySoft.HiResTimer"));
@@ -461,6 +509,17 @@ class Program
                             col.Item().Text($"Samples: {sleep.Samples.Count}, Min: {min:F3} ms, Max: {max:F3} ms, Mean: {mean:F3} ms, StdDev: {stddev:F3} ms");
 
                             var imgPath = Path.Combine(reportDir, $"histogram_QuickTickSleep_{group.Key}ms.png");
+                            if (File.Exists(imgPath))
+                                col.Item().Image(Image.FromFile(imgPath)).FitWidth();
+                        }
+
+                        if (internalSleep != null)
+                        {
+                            var (min, max, mean, stddev) = GetStats(internalSleep.Samples);
+                            col.Item().Text(internalSleep.Label).FontSize(16).Bold();
+                            col.Item().Text($"Samples: {internalSleep.Samples.Count}, Min: {min:F3} ms, Max: {max:F3} ms, Mean: {mean:F3} ms, StdDev: {stddev:F3} ms");
+
+                            var imgPath = Path.Combine(reportDir, $"histogram_internal_QuickTickSleep_{group.Key}ms.png");
                             if (File.Exists(imgPath))
                                 col.Item().Image(Image.FromFile(imgPath)).FitWidth();
                         }

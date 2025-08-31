@@ -63,7 +63,7 @@ public static class QuickTickTiming
         }
     }
 
-    private static void QuickTickSleep(long tickToSleep)
+    internal static void QuickTickSleep(long tickToSleep)
     {
         var sleepTimeTicks = -tickToSleep; // negative means relative time
 

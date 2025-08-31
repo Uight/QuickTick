@@ -4,6 +4,7 @@
   "TimeInSecondsPerTest": 10,
   "EnabledTests": {
     "QuickTickSleep": true,
+    "Internal_QuickTickSleep": false,
     "QuickTickTimer": true,
     "HighResQuickTickTimer": true,
     "KGySoft_HiResTimer": true
