@@ -2,6 +2,11 @@
   "ThreadPriority": "Highest",
   "IntervalsMs": [ 1, 5, 50 ],
   "TimeInSecondsPerTest": 10,
-  "IncludeCompareToHiResTimer": true,
-  "WarmupIntervals":  25
+  "EnabledTests": {
+    "QuickTickSleep": true,
+    "QuickTickTimer": true,
+    "HighResQuickTickTimer": true,
+    "KGySoft_HiResTimer": true
+  },
+  "WarmupIntervals": 25
 }

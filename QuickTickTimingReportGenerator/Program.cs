@@ -24,35 +24,41 @@ class Program
         {
             var iterations = (int)(config.TimeInSecondsPerTest * 1000 / Math.Max(0.5 , duration));
 
-            Thread.Sleep(500);
-            // QuickTick Sleep
-            Console.WriteLine($"Running QuickTick Sleep test for {iterations} iterations with {duration}ms...");
+            if (config.EnabledTests[TestType.QuickTickSleep])
+            {
+                Thread.Sleep(500);
+                // QuickTick Sleep
+                Console.WriteLine($"Running QuickTick Sleep test for {iterations} iterations with {duration}ms...");
 
-            var sleepMonitor = new CPUMonitor();
-            sleepMonitor.Start();
-            var sleepSamples = RunQuickTickSleepTest(duration, iterations, config.WarmupIntervals);
-            sleepMonitor.Stop();
-            var sleepCpuUsage = sleepMonitor.GetAverageCpuUsage();
-            sleepMonitor.Dispose();    
-            
-            allResults.Add(new TimingTestResult($"QuickTick Sleep {duration}ms", sleepSamples));
-            DrawHistogram(sleepSamples, Path.Combine(reportDir, $"histogram_QuickTickSleep_{duration}ms.png"), duration, sleepCpuUsage);
+                var sleepMonitor = new CPUMonitor();
+                sleepMonitor.Start();
+                var sleepSamples = RunQuickTickSleepTest(duration, iterations, config.WarmupIntervals);
+                sleepMonitor.Stop();
+                var sleepCpuUsage = sleepMonitor.GetAverageCpuUsage();
+                sleepMonitor.Dispose();
 
-            Thread.Sleep(500);
-            // QuickTick Timer
-            Console.WriteLine($"Running QuickTick Timer test for {iterations} ticks with {duration}ms...");
+                allResults.Add(new TimingTestResult($"QuickTick Sleep {duration}ms", sleepSamples));
+                DrawHistogram(sleepSamples, Path.Combine(reportDir, $"histogram_QuickTickSleep_{duration}ms.png"), duration, sleepCpuUsage);
+            }
 
-            var timerMonitor = new CPUMonitor();
-            timerMonitor.Start();
-            var timerSamples = await RunQuickTickTimerTest(duration, iterations, false, config.WarmupIntervals, config.ThreadPriority);
-            timerMonitor.Stop();
-            var timerCpuUsage = timerMonitor.GetAverageCpuUsage();
-            timerMonitor.Dispose();     
-            
-            allResults.Add(new TimingTestResult($"QuickTick Timer {duration}ms", timerSamples));
-            DrawHistogram(timerSamples, Path.Combine(reportDir, $"histogram_QuickTickTimer_{duration}ms.png"), duration, timerCpuUsage);
+            if (config.EnabledTests[TestType.QuickTickTimer])
+            {
+                Thread.Sleep(500);
+                // QuickTick Timer
+                Console.WriteLine($"Running QuickTick Timer test for {iterations} ticks with {duration}ms...");
 
-            if (config.IncludeCompareToHiResTimer)
+                var timerMonitor = new CPUMonitor();
+                timerMonitor.Start();
+                var timerSamples = await RunQuickTickTimerTest(duration, iterations, false, config.WarmupIntervals, config.ThreadPriority);
+                timerMonitor.Stop();
+                var timerCpuUsage = timerMonitor.GetAverageCpuUsage();
+                timerMonitor.Dispose();
+
+                allResults.Add(new TimingTestResult($"QuickTick Timer {duration}ms", timerSamples));
+                DrawHistogram(timerSamples, Path.Combine(reportDir, $"histogram_QuickTickTimer_{duration}ms.png"), duration, timerCpuUsage);
+            }
+
+            if (config.EnabledTests[TestType.HighResQuickTickTimer])
             {
                 Thread.Sleep(500);
                 // QuickTickHighResTimer test
@@ -67,10 +73,13 @@ class Program
 
                 allResults.Add(new TimingTestResult($"QuickTickHighResTimer {duration}ms", quickTickHighResSamples));
                 DrawHistogram(quickTickHighResSamples, Path.Combine(reportDir, $"histogram_QuickTickHighResTimer_{duration}ms.png"), duration, quickTickHighResTimerCpuUsage);
+            }
 
+            if (config.EnabledTests[TestType.KGySoft_HiResTimer])
+            {
                 Thread.Sleep(500);
                 // KGySoft.HiResTimer test
-                Console.WriteLine($"Running HiResTimer test for {iterations} ticks with {duration}ms...");
+                Console.WriteLine($"Running KGySoft_HiResTimer test for {iterations} ticks with {duration}ms...");
 
                 var hiResTimerMonitor = new CPUMonitor();
                 hiResTimerMonitor.Start();

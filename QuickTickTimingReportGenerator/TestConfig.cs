@@ -9,8 +9,8 @@ public class TestConfig
     public ThreadPriority ThreadPriority { get; set; } = ThreadPriority.Normal;
     public List<double> IntervalsMs { get; set; } = [];
     public int TimeInSecondsPerTest { get; set; } = 10;
-    public bool IncludeCompareToHiResTimer { get; set; } = true;
     public int WarmupIntervals { get; set; } = 25;
+    public Dictionary<TestType, bool> EnabledTests { get; set; } = new();
 
     public static TestConfig LoadConfig(string path)
     {
@@ -19,7 +19,14 @@ public class TestConfig
             Console.WriteLine("Config not found, using defaults.");
             var testConfig = new TestConfig
             {
-                IntervalsMs = [1, 5, 50]
+                IntervalsMs = [1, 5, 50],
+                EnabledTests = new Dictionary<TestType, bool>() 
+                {
+                    { TestType.QuickTickSleep, true },
+                    { TestType.QuickTickTimer, true },
+                    { TestType.HighResQuickTickTimer, true },
+                    { TestType.KGySoft_HiResTimer, true }
+                }
             };
             return testConfig;
         }
