@@ -7,7 +7,7 @@ jobs:
   generate-reports:
     strategy:
       matrix:
-        os: [windows-latest] # [ubuntu-latest, windows-latest, macos-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
