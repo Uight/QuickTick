@@ -7,7 +7,7 @@ jobs:
   generate-reports:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -27,21 +27,7 @@ jobs:
 
       - name: Run QuickTickTimingReportGenerator
         run: dotnet run -c Release --no-build --project QuickTickTimingReportGenerator/QuickTickTimingReportGenerator.csproj
-
-      # Debug output - Linux/macOS
-      - name: List build output (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          echo "=== bin/Release/net8.0 contents ==="
-          ls -R QuickTickTimingReportGenerator/bin/Release/net8.0 || true
-
-      # Debug output - Windows
-      - name: List build output (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Write-Output "=== bin/Release/net8.0 contents ==="
-          Get-ChildItem -Recurse QuickTickTimingReportGenerator/bin/Release/net8.0 | ForEach-Object { $_.FullName }
+        working-directory: QuickTickTimingReportGenerator
 
       - name: Upload generated report
         uses: actions/upload-artifact@v4
