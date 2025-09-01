@@ -32,4 +32,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: report-${{ matrix.os }}
-          path: QuickTickTimingReportGenerator/QuickTickReport_*/QuickTick_Report.pdf
+          path: QuickTickReport_*/QuickTick_Report.pdf
