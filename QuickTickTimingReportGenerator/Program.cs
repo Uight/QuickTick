@@ -473,13 +473,17 @@ class Program
                 CreateNoWindow = true
             };
             var proc = Process.Start(psi);
+            if (proc is null)
+            {
+                return null;
+            }
             proc.WaitForExit(2000);
             var output = proc.StandardOutput.ReadToEnd();
             return output.Trim();
         }
         catch 
         { 
-            return "Unknown"; 
+            return null; 
         }
     }
 
