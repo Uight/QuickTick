@@ -7,7 +7,7 @@ jobs:
   generate-reports:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [windows-latest] # [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -28,9 +28,14 @@ jobs:
       - name: Run QuickTickTimingReportGenerator
         run: dotnet run -c Release --no-build --project QuickTickTimingReportGenerator/QuickTickTimingReportGenerator.csproj
  
-      - name: Upload generated report folder
+       - name: List build output
+        run: |
+          echo "=== bin/Release/net8.0 contents ==="
+          ls -R QuickTickTimingReportGenerator/bin/Release/net8.0
+ 
+      - name: Upload generated report
         uses: actions/upload-artifact@v4
         with:
-          name: report-${{ matrix.os }}
-          path: QuickTickTimingReportGenerator/bin/Release/net8.0/QuickTickReport_*
+          name: report-${{ matrix.os }}-${{ github.run_number }}
+          path: QuickTickTimingReportGenerator/bin/Release/net8.0/QuickTickReport_*/QuickTick_Report.pdf
 
