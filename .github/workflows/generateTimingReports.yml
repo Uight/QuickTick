@@ -26,11 +26,10 @@ jobs:
         run: dotnet build QuickTick.sln -c Release --no-restore
 
       - name: Run QuickTickTimingReportGenerator
-        run: dotnet run -c Release --no-build --project QuickTickTimingReportGenerator.csproj
-        working-directory: QuickTickTimingReportGenerator
+        run: dotnet run -c Release --no-build --project QuickTickTimingReportGenerator/QuickTickTimingReportGenerator.csproj
 
       - name: Upload generated report
         uses: actions/upload-artifact@v4
         with:
           name: report-${{ matrix.os }}
-          path: QuickTickTimingReportGenerator/bin/Release/net8.0/**/QuickTick_Report.pdf
+          path: QuickTickTimingReportGenerator/QuickTickReport_*/QuickTick_Report.pdf
