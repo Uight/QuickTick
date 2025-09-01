@@ -26,7 +26,7 @@ jobs:
         run: dotnet build QuickTick.sln -c Release --no-restore
 
       - name: Run QuickTickTimingReportGenerator
-        run: dotnet run -c Release --no-build --project QuickTickTimingReportGenerator/QuickTickTimingReportGenerator.csproj
+        run: dotnet run -c Release --no-build --project QuickTickTimingReportGenerator.csproj
         working-directory: QuickTickTimingReportGenerator
 
       - name: Upload generated report
