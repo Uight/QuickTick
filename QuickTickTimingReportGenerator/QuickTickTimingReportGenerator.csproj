@@ -22,7 +22,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="config.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="config.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

@@ -16,7 +16,9 @@ class Program
         Directory.CreateDirectory(reportDir);
         QuestPDF.Settings.License = LicenseType.Community;
 
-        var config = TestConfig.LoadConfig("config.json");
+        var baseDir = AppContext.BaseDirectory;
+        var configPath = Path.Combine(baseDir, "config.json");
+        var config = TestConfig.LoadConfig(configPath);
 
         var allResults = new List<TimingTestResult>();
 
