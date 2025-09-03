@@ -112,7 +112,7 @@ class Program
             }
         }
 
-        var systemInfo = GetSystemInfo(config);
+        var systemInfo = GetSystemInfo();
         File.WriteAllText(Path.Combine(reportDir, "system_info.txt"), systemInfo);
 
         var pdfPath = Path.Combine(reportDir, "QuickTick_Report.pdf");
@@ -440,15 +440,14 @@ class Program
         return a * b;
     }
 
-    static string GetSystemInfo(TestConfig cfg)
+    static string GetSystemInfo()
     {
         var info =  $"OS: {RuntimeInformation.OSDescription}\n" +
                     $"Architecture: {RuntimeInformation.OSArchitecture}\n" +
                     $"Framework: {RuntimeInformation.FrameworkDescription}\n" +
                     $"Processor Count: {Environment.ProcessorCount}\n" +
                     $"64-bit OS: {Environment.Is64BitOperatingSystem}\n" +
-                    $"64-bit Process: {Environment.Is64BitProcess}\n" +
-                    $"Thread Priority: {cfg.ThreadPriority}\n";
+                    $"64-bit Process: {Environment.Is64BitProcess}\n";
 
         var scheme = GetWindowsPowerScheme();
         if (scheme != null)
