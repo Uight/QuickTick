@@ -10,17 +10,41 @@ on the **high-resolution timer** implemented by Microsoft's Go team, as detailed
 
 QuickTick leverages **IO Completion Ports (IOCP)** and **NT system calls** on windows to achieve precise and efficient timing without needing to fiddle with the system clock rate.
 It enables the creation of a `Timer` and the use of `Sleep` and `Delay` functions with precision below **15.6 ms**, ensuring accurate timing without impacting other parts of your application.
-QuickTick only really has an effect when used on a windows systems. On most other platforms supported by **.NET 8.0** you dont really need a more precise timer, as
-systems like linux dont have the **15.6 ms** limitation from the start. To allow the usage of QuickTick in cross-platform projects 
-it automatically falls back to a fallback implementation that is a wrapper around the base .net functions with the same interface.
 
-Since the system API's the QuickTick implementation uses are not available in Windows versions previous to Windows 10 and the fallback implementations
-would also not work due to the **15.6 ms** limitation and therefor if the implementation is used under Windows versions previous to windows 10 a **PlatformNotSupportedException** is thrown.
+## Supported OS
+
+QuickTick is designed primarily to improve timer resolution on Windows systems, where the default system timer has a resolution of 15.6 ms.
+On Linux and most other .NET 8.0 supported platforms, this limitation does not exist, so QuickTick automatically falls back to a wrapper around the base .NET timers while keeping the same interface.
+
+#### Windows Support
+
+✅ Windows 11
+
+✅ Windows Server 2019 and newer
+
+✅ Windows 10, version 1803 or newer
+
+QuickTick relies on specific system APIs that are only available starting with Windows 10 (1803). This is explicitly the `CreateWaitableTimerExW` function which received high resolution support in Windows 10 version 1803.
+
+On older Windows versions, QuickTick cannot function and will throw a PlatformNotSupportedException.
+
+#### Linux Support
+
+✅ Fully supported (no 15.6 ms limitation).
+
+QuickTick falls back to the standard .NET timers, which already provide high precision. All the functions the library provide can be used without needing to change settings.
+
+#### macOS Support
+
+⚠️ Supported, meaning the timer will run under macOS but the base .Net functions the timer falls back to are not very precise.
+
+See the macOS timing report for more details. 
+
+For best results, use HighResQuickTickTimer with adjusted settings. The `SleepThreshold` must be set to around 15ms to get accurate timing. This effectivly burns a whole CPU core to hold a precise timing.
 
 ## Performance Reports
 
-This are some performance reports of the QuickTickTiming.Sleep() Function aswell as for the QuickTickTimer and the HighResQuickTickTimer including a comparison to 
-the HighResTimer by György Kőszeg [found here](https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs)
+This are some performance reports of the QuickTickTiming.Sleep() Function aswell as for the QuickTickTimer and the HighResQuickTickTimer including a comparison to the HighResTimer by György Kőszeg [found here](https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs)
 
 [Win 11 Energy Saving Normal Prio](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Win11_NormalPrio_EnergySaving.pdf)  
 [Win 11 Ultimate Power Highest Prio](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Win11_HighestPrio_UltimatePower.pdf)  
@@ -97,24 +121,25 @@ The timer therefore has no influence on the remaining program and calls like `Th
 > [!IMPORTANT]
 > The `QuickTickTimer` class is able to be used cross-platform. However on systems that are not windows it falls back to
 > a fallback implementation built on base .net functions, that provides the same interface.
-> For non windows platforms the built-in timers deliver a relatively high precision, as they are not
-> based on the windows timer system and its default timing of ~15.6 ms and therefor no specific implementation is needed.
+> For non windows platforms the accuracy of the functions soly rely on the accurancy of the base `.Net` functions.
+> For some platforms like Linux this works great. But for others there might be limitatons just as windows has them with the 15.6 ms timing.
+> macOS for example seems to have a minimum Sleep time of around 10 ms. (See [Supported Platforms](#supported-platforms))
 
 > [!IMPORTANT]
 > The elapsed event is fired on a completion thread. This thread is not the same as the thread that started the timer.
 > Make sure the execution of you elapsed event does not take longer than the interval of the timer or consider 
 > using a decoupling mechanism to process the event on a different thread. This is also true for the fallback timer which altough based
-> on `System.Timers.Timer`, which schedules to thread pool has a logic built in the fallback wrap that ques the events on the same thread.
+> on `System.Timers.Timer`, which schedules to thread pool has a logic built in the fallback wrap that ques the events on a single event thread.
 
 This class implements the `IDisposable` interface. When you are finished using the timer, you should dispose of it to release all associated resources.
 
 > [!Note]
-> The actual timing accuracy of the timer is mostly based on the systems thread scheduler aswell as the system's kernel timing.
+> The actual timing accuracy of the timer on **Windows** is mostly based on the systems thread scheduler aswell as the system's kernel timing.
 > On average the system takes around 300 µs to signal the timer thread after the interval finished.
 > The thread that waits for the timer and handles the event code normally runs with the `ThreadPriority.Normal`.
 > This is normally fine and doesn’t need to be increased. Raising the priority is only recommended if the system is under heavy load and timing accuracy is noticeably affected.
 > A better solution to inaccurate timing is checking your windows power settings and especially the core parking feature.
-> Core parking can drastically worsen the times the timer thread needs to wake up when beaing signaled. You might want to turn that off.
+> Core parking can drastically worsen the times the timer thread needs to wake up when being signaled. You might want to turn that off.
 
 > [!Note]
 > The `QuickTickTimerImplementation` supports sub-millisecond intervals; however, the maximum effective resolution is approximately **0.5 milliseconds** due to Windows kernel timer limitations.  
@@ -124,7 +149,7 @@ This class implements the `IDisposable` interface. When you are finished using t
 > The timer strives to keep the **average interval** as close as possible to the requested value, but actual intervals may vary slightly depending on system load and other conditions.  
 > Typically, deviations are within **±0.6 ms**, though in some cases they may be larger.
 >
-> The fallback timer while accepting sub millisecond intervals doesnt support it due to the nature of `System.Timers.Timer` rounding up to the next full millisecond interval.
+> For the **fallback timer sub millisecond intervals aren't supported** due to the nature of `System.Timers.Timer` rounding up to the next full millisecond interval. You can still specify 0.5 ms as an interval but the timer will just run with a timing of 1 ms instead.
 
 ### Constructors
 
@@ -289,7 +314,8 @@ The timer provides the same interface as the normal QuickTickTimer but functions
 and according to the remaining time to the next interval either sleeps, yields the thread or spin waits. It therefore needs more CPU than the regular timer, but
 also has a higher precision in the timing events.
 
-For timers with intervals under 15.6 ms and over about 2.5 ms this timer behaves like the HighResTimer by György Kőszeg but needs way less CPU. For all other intervals it basically behaves the same.
+For timers with intervals over about 2.5 ms this timer behaves like the HighResTimer by György Kőszeg but needs way less CPU.
+This timer also fully **supports sub millisecond intervals on all systems** as it doesn't rely on the `System.Timers.Timer` implementation.
 
 > [!Note]
 > By design this timer uses a whole thread if you set a interval below around 2.5 ms as it then doesn't sleep and instead spin waits only. 
@@ -323,11 +349,12 @@ Gets or sets the value used to determine when to start sleeping between timer ti
 You can increase the value to improve timing accuracy but this will cost more CPU.
 
 > [!Note]
-> If a sleep is to be performed a function called `MinimalSleep` sleep is called. This sleeps for 1 ms using `Thread.Sleep()` under non windows systems
-> and for 500 µs using a special `QuickTickTiming.QuickTickSleep()` function under windows.
-> Testing showed, that in both cases the actual sleep time stays under 2.0 ms in over 99% of all cases which is why 2.0 ms is the Default sleep time.
-> Testing was performed under 3 systems (Win 11, Ubuntu 22.04 LTS aswell as Android 15 using .net 8.0)
+> If a sleep is to be performed a function called `MinimalSleep` sleep is called. This sleeps for 1 ms using `Thread.Sleep()` under non windows 
+> systems and for 500 µs using a special `QuickTickTiming.QuickTickSleep()` function under windows. Testing for linux and windows showed, 
+> that in both cases the actual sleep time stays under 2.0 ms in over 99% of all cases which is why 2.0 ms is the default sleep time.
 > An even safer value is 2.5 ms as in testing 99.9% of all minimal sleep timings stayed under 2.5 ms.
+> For systems like macOS where the accurancy of `Thread.Sleep()` is way worse than under linux a good value for the `SleepThreshold` is around 15 ms,
+> altough it should be remembered, that this will basically use a full core.
 
 > [!Note]
 > Not part of the `IQuickTickTimer` interface; Only available from the class directly

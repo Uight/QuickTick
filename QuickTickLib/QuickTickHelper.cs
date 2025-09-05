@@ -6,6 +6,7 @@ internal static class QuickTickHelper
 {
     internal const uint NtCreateWaitCompletionPacketAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.TIMER_QUERY_STATE;
     internal const uint CreateWaitableTimerExWAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.SYNCHRONIZE;
+    private const int MinRequiredWindowsBuildNumber = 17134; // This is the build number of Windows 10 Version 1803
     private static readonly Version? windowsVersion = GetWindowsVersion();
 
     internal static bool PlatformSupportsQuickTick()
@@ -15,8 +16,9 @@ internal static class QuickTickHelper
             return false;
         }
 
-        // Windows 10 / Server 2016+ (NT 10.0) should support all needed functions
-        if (windowsVersion.Major >= 10)
+        // Current Windows 10 versions / Server 2019+ will support this functions. The minimal supported windows version
+        // is Version 1803 of Windows 10 as in that version the Highprecision flag was added to CreateWaitableTimerExW which this library relies on
+        if (windowsVersion.Major >= 10 && windowsVersion.Build >= MinRequiredWindowsBuildNumber)
         {
             return true;
         }
