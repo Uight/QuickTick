@@ -30,7 +30,7 @@ On older Windows versions, QuickTick cannot function and will throw a PlatformNo
 
 #### Linux Support
 
-✅ Fully supported (no 15.6 ms limitation).
+✅ Fully supported. Tested on Ubuntu 24.04.3 LTS. Expected to work on all other current Linux distributions that support .NET 8.0
 
 QuickTick falls back to the standard .NET timers, which already provide high precision. All the functions the library provide can be used without needing to change settings.
 
@@ -41,6 +41,7 @@ QuickTick falls back to the standard .NET timers, which already provide high pre
 See the macOS timing report for more details. 
 
 For best results, use HighResQuickTickTimer with adjusted settings. The `SleepThreshold` must be set to around 15ms to get accurate timing. This effectivly burns a whole CPU core to hold a precise timing.
+The timing accurancy of `QuickTickTiming.Sleep()` and `QuickTickTiming.Delay()` match the native .NET function but are inprecise and can't be improved easily
 
 ## Performance Reports
 
