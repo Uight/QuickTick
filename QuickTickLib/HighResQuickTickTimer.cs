@@ -12,8 +12,8 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     private volatile bool running;
     private volatile bool skipMissedIntervals;
     private volatile float intervalMs;
-    private volatile float sleepThreshold = 2.0f; // 2.0f is a solid but conservative value aimed at the lowest possible cpu usage for this timer.
-                                                  // 2.5f is a value that would use a bit more cpu but would safely hold the specified time in over 99.9% of all cases (tested on 3 different machines).
+    private volatile float sleepThreshold = 1.5f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensivly testing with the TimingReportGenerator
+    private volatile float yieldThreshold = 0.75f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensivly testing with the TimingReportGenerator
     private long intervalTicks;
     private ThreadPriority threadPriority = ThreadPriority.Highest;
     private CancellationTokenSource? cancellationTokenSource;
@@ -70,20 +70,49 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     }
 
     /// <summary>
-    /// Defines the time that must be available towards the next timer iteration before the system starts to sleep.
-    /// Increasing this time can lead to better timing but increases CPU usage as the code will then SpinWait instead.
+    /// Defines the minimum time that must be available towards the next timer iteration for the thread to sleep.
+    /// Increasing this time can lead to better timing but increases CPU usage as the code will Yield or SpinWait instead.
+    /// Must be at least 1.0 and at most int.MaxValue.
+    /// YieldThreshold must always be less than or equal to SleepThreshold.
+    /// Setting SleepThreshold to int.MaxValue will basically disable sleeping the thread and the timer will Yield or SpinWait the thread instead.
     /// </summary>
     public double SleepThreshold
     {
         get => sleepThreshold;
         set
         {
-            if (value > int.MaxValue || value <= 1.0 || double.IsNaN(value))
+            if (value < 1.0 || value > int.MaxValue || double.IsNaN(value))
             {
-                throw new ArgumentOutOfRangeException("SleepThreshold must be greater than 1.0 and smaller than int.MaxValue");
+                throw new ArgumentOutOfRangeException("SleepThreshold must be greater than or equal to 1.0 and smaller than int.MaxValue.");
+            }
+
+            if (yieldThreshold > value)
+            {
+                throw new ArgumentOutOfRangeException("SleepThreshold must be greater than or equal to YieldThreshold.");
             }
 
             sleepThreshold = (float)value;
+        }
+    }
+
+    /// <summary>
+    /// Defines the minimum time that must be available towards the next timer iteration to yield the thread.
+    /// Increasing this time can lead to better timing but increases CPU usage as the code will SpinWait instead.
+    /// Must be at least 0.0 and at most the value of SleepThreshold. 
+    /// Setting YieldThreshold equal to SleepThreshold disables yielding (goes directly to spin wait).
+    /// Setting YieldThreshold equal to 0.0 will basically disable spin waiting altough if no process is ready to run on this thread the behavior is almost the same.
+    /// </summary>
+    public double YieldThreshold
+    {
+        get => yieldThreshold;
+        set
+        {
+            if (value < 0.0 || value > sleepThreshold || double.IsNaN(value))
+            {
+                throw new ArgumentOutOfRangeException("YieldThreshold must be greater than or equal to 0.0 and less than or equal to SleepThreshold.");
+            }
+
+            yieldThreshold = (float)value;
         }
     }
 
@@ -146,7 +175,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
                 {
                     QuickTickTiming.MinimalSleep();
                 }
-                else if (diffTicks >= ticksPerMillisecond)
+                else if (diffTicks >= ticksPerMillisecond * yieldThreshold)
                 {
                     Thread.Yield();
                 }

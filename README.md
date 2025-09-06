@@ -40,16 +40,22 @@ QuickTick falls back to the standard .NET timers, which already provide high pre
 
 See the macOS timing report for more details. 
 
-For best results, use HighResQuickTickTimer with adjusted settings. The `SleepThreshold` must be set to around 15ms to get accurate timing. This effectivly burns a whole CPU core to hold a precise timing.
-The timing accurancy of `QuickTickTiming.Sleep()` and `QuickTickTiming.Delay()` match the native .NET function but are inprecise and can't be improved easily
+For best results, use HighResQuickTickTimer with adjusted settings. See macOS timing report Comment. This effectivly burns a whole CPU core to hold a precise timing.
+The timing accurancy of `QuickTickTiming.Sleep()` and `QuickTickTiming.Delay()` match the native .NET function but are inprecise and can't be improved easily.
 
 ## Performance Reports
 
 This are some performance reports of the QuickTickTiming.Sleep() Function aswell as for the QuickTickTimer and the HighResQuickTickTimer including a comparison to the HighResTimer by György Kőszeg [found here](https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs)
 
-[Win 11 Energy Saving Normal Prio](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Win11_NormalPrio_EnergySaving.pdf)  
-[Win 11 Ultimate Power Highest Prio](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Win11_HighestPrio_UltimatePower.pdf)  
-[Ubuntu 24.04.3 LTS Highest Prio](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Ubuntu_24_04_3_HighestPrio.pdf)
+
+| OS                  | Priority | Power Setting    | Report                                                                                                                                                         | Comment |
+|---------------------|----------|------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| Windows 11          | Normal   | Energy Saving    | [📄](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Win11_NormalPrio_EnergySaving.pdf)                   | ⚠️ Lower accuracy than high power, but still much better than default .NET functions |
+| Windows 11          | Highest  | Ultimate Power   | [📄](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Win11_HighestPrio_UltimatePower.pdf)                | ✅ Stable high-resolution timing |
+| Windows Server 2022 | Highest  | High Performance | [📄](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Windows_Sever_2022_HighestPrio_HighPerformance.pdf) | ✅ Stable high-resolution timing |
+| Ubuntu 24.04.3 LTS  | Highest  | N/A              | [📄](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Ubuntu_24_04_3_HighestPrio.pdf)                     | ✅ Stable high-resolution timing |
+| macOS 15.5 Sequoia  | Highest  | N/A              | [📄](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_macOS_15.5_Sequoia_HighestPrio.pdf)                 | ⚠️ Default .NET timers limit precision to around ~10 ms. HighResQuickTickTimer can help with `SleepThreshold ≈ 15 ms` and `YieldThreshold ≈ 1.5 ms` |
+
 
 ## QuickTickTimer Class
 
@@ -340,26 +346,43 @@ This timer always starts with `ThreadPriority.Highest`.
 Does not implement this property as it isn't part of the IQuickTickTimer interface. Also there is no fallback implementation for this timer. Just
 the way it sleeps is switched on the different operating systems.
 
-#### IsQuickTickUsed
+#### SleepThreshold
 
 ```csharp
 public double SleepThreshold { get; set }
 ```
 
-Gets or sets the value used to determine when to start sleeping between timer ticks. Default is 2.0 ms;
-You can increase the value to improve timing accuracy but this will cost more CPU.
+Defines the minimum time that must be available towards the next timer iteration for the thread to sleep. Default is 1.5 ms.
+Increasing this time can lead to better timing but increases CPU usage as the code will Yield or SpinWait instead.
+Must be at least 1.0 and at most int.MaxValue.
+YieldThreshold must always be less than or equal to SleepThreshold.
+Setting SleepThreshold to int.MaxValue will basically disable sleeping the thread and the timer will Yield or SpinWait the thread instead.
 
 > [!Note]
 > If a sleep is to be performed a function called `MinimalSleep` sleep is called. This sleeps for 1 ms using `Thread.Sleep()` under non windows 
-> systems and for 500 µs using a special `QuickTickTiming.QuickTickSleep()` function under windows. Testing for linux and windows showed, 
-> that in both cases the actual sleep time stays under 2.0 ms in over 99% of all cases which is why 2.0 ms is the default sleep time.
-> An even safer value is 2.5 ms as in testing 99.9% of all minimal sleep timings stayed under 2.5 ms.
+> systems and for 400 µs using a special `QuickTickTiming.QuickTickSleep()` function under windows. Testing for linux and windows showed, 
+> that in both cases the actual sleep time stays under 1.5 ms in over 99% of all cases which is why 1.5 ms is the default sleep time.
+> An even safer value is 2.0 ms as in testing all minimal sleep timings stayed under 2.0 ms for both linux and windows.
 > For systems like macOS where the accurancy of `Thread.Sleep()` is way worse than under linux a good value for the `SleepThreshold` is around 15 ms,
 > altough it should be remembered, that this will basically use a full core.
 
 > [!Note]
 > Not part of the `IQuickTickTimer` interface; Only available from the class directly
 
+#### YieldThreshold
+
+```csharp
+public double YieldThreshold { get; set }
+```
+
+Defines the minimum time that must be available towards the next timer iteration to yield the thread. Default is 0.75 ms.
+Increasing this time can lead to better timing but increases CPU usage as the code will SpinWait instead.
+Must be at least 0.0 and at most the value of SleepThreshold. 
+Setting YieldThreshold equal to SleepThreshold disables yielding (goes directly to spin wait).
+Setting YieldThreshold equal to 0.0 will basically disable spin waiting altough if no process is ready to run on this thread the behavior is almost the same.
+
+> [!Note]
+> Not part of the `IQuickTickTimer` interface; Only available from the class directly
 
 ## QuickTickTiming Class
 
