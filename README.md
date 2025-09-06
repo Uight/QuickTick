@@ -178,7 +178,7 @@ Initializes a new instance of the `QuickTickTimer` class with the specified inte
     - For QuickTick: must be ≥ 0.5 milliseconds and ≤ int.MaxValue milliseconds
     - For Fallback: must be ≥ 1 millisecond and ≤ int.MaxValue milliseconds
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
-- `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10.
+- `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10 Build 1803.
 
 #### QuickTickTimer(TimeSpan interval)
 
@@ -200,7 +200,7 @@ tp create a timer with sub millisecond timing you would need to create the timeS
     - For QuickTick: must be ≥ 0.5 milliseconds and ≤ int.MaxValue milliseconds
     - For Fallback: must be ≥ 1 millisecond and ≤ int.MaxValue milliseconds
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
-- `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10.
+- `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10 Build 1803.
 
 ### Properties
 
@@ -415,7 +415,7 @@ will in this situation.
 
 - `ArgumentOutOfRangeException`: Thrown if `millisecondsTimeout` less than zero.
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
-- `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10.
+- `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10 Build 1803.
 
 #### Delay()
 
@@ -435,4 +435,4 @@ Asynchronously blocks the current thread for the specified duration. It allows c
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
 - `TaskCanceledException`: If the cancellation token was cancelled during the delay phase.
 - `ObjectDisposedException`: The provided `cancellationToken` has already been disposed.
-- `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10.
+- `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10 Build 1803.
