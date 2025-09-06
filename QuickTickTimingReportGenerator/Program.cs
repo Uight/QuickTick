@@ -4,6 +4,7 @@ using QuestPDF.Infrastructure;
 using QuickTickLib;
 using SkiaSharp;
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace QuickTickTimingReportGenerator;
@@ -499,6 +500,10 @@ class Program
 
                 page.Content().Column(col =>
                 {
+                    col.Item().Text(string.Empty);
+                    col.Item().Text("Version Information:").Bold();
+                    col.Item().Text($"QuickTickLib Version: {Assembly.GetAssembly(typeof(QuickTickTiming))!.GetName().Version!.ToString()}");
+                    col.Item().Text(string.Empty);
                     col.Item().Text("System Information:").Bold();
                     col.Item().Text(systemInfo);
                     col.Item().Text(string.Empty);
