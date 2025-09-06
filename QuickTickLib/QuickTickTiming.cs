@@ -4,6 +4,9 @@ namespace QuickTickLib;
 
 public static class QuickTickTiming
 {
+    // Testing showed that waiting 0.5ms results in around 1ms average waiting while going to 0.4ms results in an average of 0.5ms wait time
+    const long fourHundredMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.4);
+
     public static async Task Delay(int millisecondsDelay, CancellationToken cancellationToken = default)
     {
         var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
@@ -53,9 +56,8 @@ public static class QuickTickTiming
     {
         var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
         if (isQuickTickSupported)
-        {
-            const long halfMillisecondInTicks = TimeSpan.TicksPerMillisecond / 2;
-            QuickTickSleep(halfMillisecondInTicks);
+        {       
+            QuickTickSleep(fourHundredMicroSecondInTicks);
         }
         else
         {
