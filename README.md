@@ -40,8 +40,8 @@ QuickTick falls back to the standard .NET timers, which already provide high pre
 
 See the macOS timing report for more details. 
 
-For best results, use HighResQuickTickTimer with adjusted settings. The `SleepThreshold` must be set to around 15ms to get accurate timing. This effectivly burns a whole CPU core to hold a precise timing.
-The timing accurancy of `QuickTickTiming.Sleep()` and `QuickTickTiming.Delay()` match the native .NET function but are inprecise and can't be improved easily
+For best results, use HighResQuickTickTimer with adjusted settings. See macOS timing report Comment. This effectivly burns a whole CPU core to hold a precise timing.
+The timing accurancy of `QuickTickTiming.Sleep()` and `QuickTickTiming.Delay()` match the native .NET function but are inprecise and can't be improved easily.
 
 ## Performance Reports
 
@@ -346,26 +346,43 @@ This timer always starts with `ThreadPriority.Highest`.
 Does not implement this property as it isn't part of the IQuickTickTimer interface. Also there is no fallback implementation for this timer. Just
 the way it sleeps is switched on the different operating systems.
 
-#### IsQuickTickUsed
+#### SleepThreshold
 
 ```csharp
 public double SleepThreshold { get; set }
 ```
 
-Gets or sets the value used to determine when to start sleeping between timer ticks. Default is 2.0 ms;
-You can increase the value to improve timing accuracy but this will cost more CPU.
+Defines the minimum time that must be available towards the next timer iteration for the thread to sleep. Default is 1.5 ms.
+Increasing this time can lead to better timing but increases CPU usage as the code will Yield or SpinWait instead.
+Must be at least 1.0 and at most int.MaxValue.
+YieldThreshold must always be less than or equal to SleepThreshold.
+Setting SleepThreshold to int.MaxValue will basically disable sleeping the thread and the timer will Yield or SpinWait the thread instead.
 
 > [!Note]
 > If a sleep is to be performed a function called `MinimalSleep` sleep is called. This sleeps for 1 ms using `Thread.Sleep()` under non windows 
-> systems and for 500 µs using a special `QuickTickTiming.QuickTickSleep()` function under windows. Testing for linux and windows showed, 
-> that in both cases the actual sleep time stays under 2.0 ms in over 99% of all cases which is why 2.0 ms is the default sleep time.
-> An even safer value is 2.5 ms as in testing 99.9% of all minimal sleep timings stayed under 2.5 ms.
+> systems and for 400 µs using a special `QuickTickTiming.QuickTickSleep()` function under windows. Testing for linux and windows showed, 
+> that in both cases the actual sleep time stays under 1.5 ms in over 99% of all cases which is why 1.5 ms is the default sleep time.
+> An even safer value is 2.0 ms as in testing all minimal sleep timings stayed under 2.0 ms for both linux and windows.
 > For systems like macOS where the accurancy of `Thread.Sleep()` is way worse than under linux a good value for the `SleepThreshold` is around 15 ms,
 > altough it should be remembered, that this will basically use a full core.
 
 > [!Note]
 > Not part of the `IQuickTickTimer` interface; Only available from the class directly
 
+#### YieldThreshold
+
+```csharp
+public double YieldThreshold { get; set }
+```
+
+Defines the minimum time that must be available towards the next timer iteration to yield the thread. Default is 0.75 ms.
+Increasing this time can lead to better timing but increases CPU usage as the code will SpinWait instead.
+Must be at least 0.0 and at most the value of SleepThreshold. 
+Setting YieldThreshold equal to SleepThreshold disables yielding (goes directly to spin wait).
+Setting YieldThreshold equal to 0.0 will basically disable spin waiting altough if no process is ready to run on this thread the behavior is almost the same.
+
+> [!Note]
+> Not part of the `IQuickTickTimer` interface; Only available from the class directly
 
 ## QuickTickTiming Class
 
