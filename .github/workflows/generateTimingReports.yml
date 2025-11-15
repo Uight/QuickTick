@@ -1,23 +1,25 @@
 name: Generate QuickTick Reports
 
 on:
-  workflow_dispatch: # allows manual trigger
+  workflow_dispatch:
 
 jobs:
   generate-reports:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        dotnet: ['8.0.x', '10.0.x']
+
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
+      - name: Setup .NET ${{ matrix.dotnet }}
+        uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: ${{ matrix.dotnet }}
 
       - name: Restore dependencies
         run: dotnet restore QuickTick.sln
@@ -29,7 +31,7 @@ jobs:
         run: dotnet run -c Release --no-build --project QuickTickTimingReportGenerator/QuickTickTimingReportGenerator.csproj
 
       - name: Upload generated report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
-          name: report-${{ matrix.os }}
+          name: report-${{ matrix.os }}-dotnet-${{ matrix.dotnet }}
           path: QuickTickReport_*/QuickTick_Report.pdf
