@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFrameworks>net8.0;net48</TargetFrameworks>
+    <TargetFrameworks>net8.0;net10.0;net48</TargetFrameworks>
 
     <Authors>Uight</Authors>
     <Description>HighPrecision Timer, Sleep and Delay functions in .net8.0</Description>
