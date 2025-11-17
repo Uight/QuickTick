@@ -9,11 +9,7 @@ jobs:
       fail-fast: false 
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        dotnet: 
-          - version: "8.0.x"
-            tfm: "net8.0"
-          - version: "10.0.x"
-            tfm: "net10.0"
+        dotnet: ['net8.0', 'net10.0']
 
     runs-on: ${{ matrix.os }}
 
@@ -21,10 +17,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Setup .NET ${{ matrix.dotnet.version }}
+      - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: ${{ matrix.dotnet.version }}
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Restore dependencies
         run: dotnet restore QuickTick.sln
@@ -33,10 +31,10 @@ jobs:
         run: dotnet build QuickTick.sln -c Release --no-restore
 
       - name: Run QuickTickTimingReportGenerator
-        run: dotnet run -c Release --no-build --project QuickTickTimingReportGenerator/QuickTickTimingReportGenerator.csproj --framework ${{ matrix.dotnet.tfm }}
+        run: dotnet run -c Release --no-build --project QuickTickTimingReportGenerator/QuickTickTimingReportGenerator.csproj --framework ${{ matrix.dotnet }}
 
       - name: Upload generated report
         uses: actions/upload-artifact@v5
         with:
-          name: report-${{ matrix.os }}-${{ matrix.dotnet.tfm }}
+          name: report-${{ matrix.os }}-${{ matrix.dotnet }}
           path: QuickTickReport_*/QuickTick_Report.pdf
