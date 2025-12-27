@@ -3,7 +3,7 @@
 [![](https://img.shields.io/nuget/vpre/QuickTickLib?color=%23004880&label=NuGet&logo=NuGet)](https://www.nuget.org/packages/QuickTickLib/)
 [![GitHub](https://img.shields.io/github/license/uight/quicktick?color=%231281c0)](LICENSE)
 
-**QuickTick** is a high-precision timer library for **.NET 8.0** and **.NET Framework 4.8**, designed for scenarios where accurate and low-latency timing is required.
+**QuickTick** is a high-precision timer library for **.NET 8.0**, **.NET 10.0** and **.NET Framework 4.8**, designed for scenarios where accurate and low-latency timing is required.
 
 It is inspired by discussions in the [.NET Runtime issue #67088](https://github.com/dotnet/runtime/issues/67088) and is based 
 on the **high-resolution timer** implemented by Microsoft's Go team, as detailed in [this blog post](https://devblogs.microsoft.com/go/high-resolution-timers-windows/).
@@ -30,7 +30,7 @@ On older Windows versions, QuickTick cannot function and will throw a PlatformNo
 
 #### Linux Support
 
-✅ Fully supported. Tested on Ubuntu 24.04.3 LTS. Expected to work on all other current Linux distributions that support .NET 8.0
+✅ Fully supported. Tested on Ubuntu 24.04.3 LTS. Expected to work on all other current Linux distributions that support .NET 8.0 or .Net 10.0
 
 QuickTick falls back to the standard .NET timers, which already provide high precision. All the functions the library provide can be used without needing to change settings.
 
@@ -48,13 +48,14 @@ The timing accurancy of `QuickTickTiming.Sleep()` and `QuickTickTiming.Delay()` 
 This are some performance reports of the QuickTickTiming.Sleep() Function aswell as for the QuickTickTimer and the HighResQuickTickTimer including a comparison to the HighResTimer by György Kőszeg [found here](https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs)
 
 
-| OS                  | Priority | Power Setting    | Report                                                                                                                                                         | Comment |
-|---------------------|----------|------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| Windows 11          | Normal   | Energy Saving    | [📄](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Win11_NormalPrio_EnergySaving.pdf)                   | ⚠️ Lower accuracy than high power, but still much better than default .NET functions |
-| Windows 11          | Highest  | Ultimate Power   | [📄](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Win11_HighestPrio_UltimatePower.pdf)                | ✅ Stable high-resolution timing |
-| Windows Server 2022 | Highest  | High Performance | [📄](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Windows_Sever_2022_HighestPrio_HighPerformance.pdf) | ✅ Stable high-resolution timing |
-| Ubuntu 24.04.3 LTS  | Highest  | N/A              | [📄](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_Ubuntu_24_04_3_HighestPrio.pdf)                     | ✅ Stable high-resolution timing |
-| macOS 15.5 Sequoia  | Highest  | N/A              | [📄](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_Report_macOS_15.5_Sequoia_HighestPrio.pdf)                 | ⚠️ Default .NET timers limit precision to around ~10 ms. HighResQuickTickTimer can help with `SleepThreshold ≈ 15 ms` and `YieldThreshold ≈ 1.5 ms` |
+| OS                  | Priority | Power Setting    | Report                                                                                                                                                                                   | Comment                                                                                                                                              |
+|---------------------|----------|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Windows 11          | Normal   | Energy Saving    | [📄 v2.1 · .NET 8.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.1_Report_Win11_NormalPrio_EnergySaving_Net8.pdf)                    | ⚠️ Lower accuracy than high power, but still much better than default .NET functions                                                                |
+| Windows 11          | Highest  | Ultimate Power   | [📄 v2.1 · .NET 8.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.1_Report_Win11_HighestPrio_UltimatePower_Net8.pdf)                  | ✅ Stable high-resolution timing                                                                                                                    |
+| Windows Server 2022 | Highest  | High Performance | [📄 v2.1 · .NET 8.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.1_Report_Windows_Sever_2022_HighestPrio_HighPerformance_Net8.pdf)   | ✅ Stable high-resolution timing                                                                                                                    |
+| Windows Server 2025 | Highest  | High Performance | [📄 v2.2 · .NET 10.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.2_Report_Windows_Sever_2025_HighestPrio_HighPerformance_Net10.pdf) | ✅ Stable high-resolution timing                                                                                                                    |
+| Ubuntu 24.04.3 LTS  | Highest  | N/A              | [📄 v2.1 · .NET 8.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.1_Report_Ubuntu_24.04.3_HighestPrio_Net8.pdf)                       | ✅ Stable high-resolution timing                                                                                                                    |
+| macOS 15.5 Sequoia  | Highest  | N/A              | [📄 v2.1 · .NET 8.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.1_Report_macOS_15.5_Sequoia_HighestPrio_Net8.pdf)                   | ⚠️ Default .NET timers limit precision to around ~10 ms. HighResQuickTickTimer can help with `SleepThreshold ≈ 15 ms` and `YieldThreshold ≈ 1.5 ms` |
 
 
 ## QuickTickTimer Class
