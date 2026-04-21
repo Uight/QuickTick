@@ -3,6 +3,9 @@ name: Generate QuickTick Reports
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   generate-reports:
     strategy:
