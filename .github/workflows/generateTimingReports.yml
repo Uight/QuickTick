@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -37,7 +37,7 @@ jobs:
         run: dotnet run -c Release --no-build --project QuickTickTimingReportGenerator/QuickTickTimingReportGenerator.csproj --framework ${{ matrix.dotnet }}
 
       - name: Upload generated report
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: report-${{ matrix.os }}-${{ matrix.dotnet }}
           path: QuickTickReport_*/QuickTick_Report.pdf
