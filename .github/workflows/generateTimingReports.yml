@@ -1,7 +1,7 @@
 name: Generate QuickTick Reports
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # Allow manually triggering the workflow
 
 permissions:
   contents: read
