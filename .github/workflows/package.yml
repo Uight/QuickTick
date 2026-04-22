@@ -1,10 +1,12 @@
 name: Deploy NuGet Packages
 
 on:
-  workflow_dispatch:  # manually trigger the workflow
-  label:  # run workflow when label/tag is created
-    types:
-      - created
+  workflow_dispatch:  # Allow manually triggering the workflow
+  release:  # Run the workflow when a release is triggered
+    types: [published]
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
@@ -12,7 +14,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: 🛒 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: ✨ Setup .NET
         uses: actions/setup-dotnet@v5
@@ -34,7 +36,7 @@ jobs:
           nuget push "QuickTickLib\bin\Release\*.nupkg" -SkipDuplicate -Source https://api.nuget.org/v3/index.json
 
       - name: 💾 Store Packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: QuickTickLib-Packages
           retention-days: 3
