@@ -22,7 +22,7 @@ public static class QuickTickTiming
         using (var timer = new QuickTickTimer(millisecondsDelay))
         {
             timer.AutoReset = false;
-            timer.Elapsed += (object? _, QuickTickElapsedEventArgs _) => tcs.TrySetResult(true);
+            timer.Elapsed += (_, _) => tcs.TrySetResult(true);
             timer.Start();
 
             using (cancellationToken.Register(() => tcs.TrySetCanceled()))
@@ -75,8 +75,7 @@ public static class QuickTickTiming
             throw new InvalidOperationException($"CreateIoCompletionPort failed: {Marshal.GetLastWin32Error()}");
         }
 
-        IntPtr waitIocpHandle;
-        var ntCreateWaitCompletionPacketStatus = Win32Interop.NtCreateWaitCompletionPacket(out waitIocpHandle, QuickTickHelper.NtCreateWaitCompletionPacketAccessRights, IntPtr.Zero);
+        var ntCreateWaitCompletionPacketStatus = Win32Interop.NtCreateWaitCompletionPacket(out var waitIocpHandle, QuickTickHelper.NtCreateWaitCompletionPacketAccessRights, IntPtr.Zero);
         if (ntCreateWaitCompletionPacketStatus != 0)
         {
             throw new InvalidOperationException($"NtCreateWaitCompletionPacket failed: {ntCreateWaitCompletionPacketStatus:X8}");
