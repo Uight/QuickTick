@@ -27,7 +27,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
         {
             if (value > int.MaxValue || value < 0.5 || double.IsNaN(value))
             {
-                throw new ArgumentOutOfRangeException("Interval must be between 0.5 and int.MaxValue");
+                throw new ArgumentOutOfRangeException(nameof(value), "Interval must be between 0.5 and int.MaxValue");
             }
 
             intervalMs = (float)value;
@@ -83,12 +83,12 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
         {
             if (value < 1.0 || value > int.MaxValue || double.IsNaN(value))
             {
-                throw new ArgumentOutOfRangeException("SleepThreshold must be greater than or equal to 1.0 and smaller than int.MaxValue.");
+                throw new ArgumentOutOfRangeException(nameof(value), "SleepThreshold must be greater than or equal to 1.0 and smaller than int.MaxValue.");
             }
 
             if (yieldThreshold > value)
             {
-                throw new ArgumentOutOfRangeException("SleepThreshold must be greater than or equal to YieldThreshold.");
+                throw new ArgumentOutOfRangeException(nameof(value), "SleepThreshold must be greater than or equal to YieldThreshold.");
             }
 
             sleepThreshold = (float)value;
@@ -109,7 +109,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
         {
             if (value < 0.0 || value > sleepThreshold || double.IsNaN(value))
             {
-                throw new ArgumentOutOfRangeException("YieldThreshold must be greater than or equal to 0.0 and less than or equal to SleepThreshold.");
+                throw new ArgumentOutOfRangeException(nameof(value), "YieldThreshold must be greater than or equal to 0.0 and less than or equal to SleepThreshold.");
             }
 
             yieldThreshold = (float)value;

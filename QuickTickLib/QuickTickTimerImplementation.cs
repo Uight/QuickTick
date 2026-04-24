@@ -47,7 +47,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         {
             if (value > int.MaxValue || value < 0.5 || double.IsNaN(value))
             {
-                throw new ArgumentOutOfRangeException("Interval must be between 0.5 and int.MaxValue");
+                throw new ArgumentOutOfRangeException(nameof(value), "Interval must be between 0.5 and int.MaxValue");
             }
 
             intervalMs = (float)value;
