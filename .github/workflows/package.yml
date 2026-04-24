@@ -24,7 +24,7 @@ jobs:
             10.0.x
 
       - name: 🛠️ Setup NuGet
-        uses: nuget/setup-nuget@v2
+        uses: nuget/setup-nuget@v4
         with:
           nuget-api-key: ${{ secrets.NUGET_API_KEY }}
 
