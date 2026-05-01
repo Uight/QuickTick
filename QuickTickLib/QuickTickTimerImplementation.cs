@@ -27,7 +27,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
     private ThreadPriority threadPriority = ThreadPriority.Normal;
     private QuickTickElapsedEventHandler? elapsed;
 
-    private bool disposed;
+    private int disposedState;
 
     ~QuickTickTimerImplementation()
     {
@@ -165,9 +165,9 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
 
     private void Dispose(bool disposing)
     {
-        if (disposed) return;
+        if (Interlocked.Exchange(ref disposedState, 1) == 1)
         {
-            disposed = true;
+            return;
         }
 
         if (disposing)
