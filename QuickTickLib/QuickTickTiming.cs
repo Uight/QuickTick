@@ -70,7 +70,7 @@ public static class QuickTickTiming
         var sleepTimeTicks = -tickToSleep; // negative means relative time
 
         var iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
-        if (iocpHandle == IntPtr.Zero)
+        if (iocpHandle.IsInvalid)
         {
             throw new InvalidOperationException($"CreateIoCompletionPort failed: {Marshal.GetLastWin32Error()}");
         }
@@ -82,7 +82,7 @@ public static class QuickTickTiming
         }
 
         var timerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, Win32Interop.CreateWaitableTimerFlag_HIGH_RESOLUTION, QuickTickHelper.CreateWaitableTimerExWAccessRights);
-        if (timerHandle == IntPtr.Zero)
+        if (timerHandle.IsInvalid)
         {
             throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");
         }
@@ -112,19 +112,8 @@ public static class QuickTickTiming
             }
         }
 
-        if (waitIocpHandle != IntPtr.Zero)
-        {
-            Win32Interop.CloseHandle(waitIocpHandle);
-        }
-
-        if (iocpHandle != IntPtr.Zero)
-        {
-            Win32Interop.CloseHandle(iocpHandle);
-        }
-
-        if (timerHandle != IntPtr.Zero)
-        {
-            Win32Interop.CloseHandle(timerHandle);
-        }
+        waitIocpHandle.Dispose();
+        iocpHandle.Dispose();
+        timerHandle.Dispose();
     }
 }

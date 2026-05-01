@@ -7,9 +7,9 @@ namespace QuickTickLib;
 
 internal class QuickTickTimerImplementation : IQuickTickTimer
 {
-    private readonly IntPtr iocpHandle;
-    private readonly IntPtr waitIocpHandle;
-    private readonly IntPtr timerHandle;
+    private readonly SafeIoCompletionPortHandle iocpHandle;
+    private readonly SafeWaitCompletionPacketHandle waitIocpHandle;
+    private readonly SafeTimerHandle timerHandle;
 
     private static readonly IntPtr successCompletionKey = new(1);
 
@@ -86,7 +86,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         Interval = interval;
 
         iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
-        if (iocpHandle == IntPtr.Zero)
+        if (iocpHandle.IsInvalid)
         {
             throw new InvalidOperationException($"CreateIoCompletionPort failed: {Marshal.GetLastWin32Error()}");
         }
@@ -98,7 +98,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         }
 
         timerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, Win32Interop.CreateWaitableTimerFlag_HIGH_RESOLUTION, QuickTickHelper.CreateWaitableTimerExWAccessRights);
-        if (timerHandle == IntPtr.Zero)
+        if (timerHandle.IsInvalid)
         {
             throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");
         }
@@ -136,7 +136,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         }
 
         isRunning = false;
-        if (timerHandle != IntPtr.Zero)
+        if (!timerHandle.IsInvalid)
         {
             Win32Interop.CancelWaitableTimer(timerHandle);
         }
@@ -150,7 +150,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         }
         completionThread = null;
 
-        if (waitIocpHandle != IntPtr.Zero)
+        if (!waitIocpHandle.IsInvalid)
         {
             Win32Interop.NtCancelWaitCompletionPacket(waitIocpHandle, true);
         }
@@ -176,20 +176,9 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
             elapsed = null;
         }
 
-        if (waitIocpHandle != IntPtr.Zero)
-        {
-            Win32Interop.CloseHandle(waitIocpHandle);
-        }
-
-        if (iocpHandle != IntPtr.Zero)
-        {
-            Win32Interop.CloseHandle(iocpHandle);
-        }
-
-        if (timerHandle != IntPtr.Zero)
-        {
-            Win32Interop.CloseHandle(timerHandle);
-        }
+        waitIocpHandle.Dispose();
+        iocpHandle.Dispose();
+        timerHandle.Dispose();
     }
 
     private void SetTimer()
@@ -268,7 +257,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
             {
                 isRunning = false;
                 stopWatch.Reset();
-                if (timerHandle != IntPtr.Zero)
+                if (!timerHandle.IsInvalid)
                 {
                     Win32Interop.CancelWaitableTimer(timerHandle);
                 }

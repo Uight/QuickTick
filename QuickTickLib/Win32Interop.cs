@@ -17,12 +17,12 @@ internal partial class Win32Interop
     [LibraryImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetHandleInformation(
-        IntPtr hObject,
+        SafeHandle hObject,
         out uint lpdwFlags
     );
 
     [LibraryImport(KernelDll, SetLastError = true)]
-    public static partial IntPtr CreateIoCompletionPort(
+    public static partial SafeIoCompletionPortHandle CreateIoCompletionPort(
         IntPtr FileHandle, // A file handle or Invalid_Handle_Value // Not needed here => use Invalid_Handle_Value
         IntPtr ExistingCompletionPort, // Handle for a open I/O completion port or null // Not needed here
         IntPtr CompletionKey, // Optional CompletionKey to be added to all I/O completion packages related to the file handle // Not needed here
@@ -31,13 +31,13 @@ internal partial class Win32Interop
 
     [LibraryImport(NtDll, SetLastError = true)]
     public static partial int NtCreateWaitCompletionPacket(
-        out IntPtr WaitCompletionPacketHandle, // A pointer to a variable that receives the wait completion packet handle
+        out SafeWaitCompletionPacketHandle WaitCompletionPacketHandle, // A pointer to a variable that receives the wait completion packet handle
         uint DesiredAccess, // Access mask for the wait completion packet
         IntPtr ObjectAttributes // Optional pointer to  PROJECT_ATTRIBUTES // Not needed here
     );
 
     [LibraryImport(KernelDll, SetLastError = true)]
-    public static partial IntPtr CreateWaitableTimerExW(
+    public static partial SafeTimerHandle CreateWaitableTimerExW(
         IntPtr lpTimerAttributes,  // Optional pointer to a SECURITY_ATTRIBUTES structure // Not needed here
         IntPtr lpTimerName, // Optional pinter to the name of the timer // Not needed here
         uint dwFlags, // Flags for the timer
@@ -46,9 +46,9 @@ internal partial class Win32Interop
 
     [LibraryImport(NtDll, SetLastError = true)]
     public static partial int NtAssociateWaitCompletionPacket(
-        IntPtr WaitCompletionPacketHandle, // Handle to a wait completion package
-        IntPtr IoCompletionHandle, // Handle to the I/O completion port
-        IntPtr TargetObjectHandle, // A handle to a waitable object // Here the timer
+        SafeWaitCompletionPacketHandle WaitCompletionPacketHandle, // Handle to a wait completion package
+        SafeIoCompletionPortHandle IoCompletionHandle, // Handle to the I/O completion port
+        SafeHandle TargetObjectHandle, // A handle to a waitable object // Here the timer
         IntPtr KeyContext, // Optional key context // Not needed here 
         IntPtr ApcContext, // Optional apc context // Not needed here
         int IoStatus, // Status that would be returned on call to NtRemoveIoCompletion
@@ -59,7 +59,7 @@ internal partial class Win32Interop
     [LibraryImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SetWaitableTimer(
-        IntPtr hTimer, // Pointer to the timer
+        SafeTimerHandle hTimer, // Pointer to the timer
         ref long lpDueTime, // Due time of the timer. Positive values are absolute timestamps while negative values are a reference to the current time (In 100ns steps)
         int lPeriod, // If bigger then 0 the timer will be signaled multiple times // Seems to be less precise so we just keep reseeting the timer instead
         IntPtr pfnCompletionRoutine, // Optional pointer to a completion routine // Not needed here as we use the I/O completion package instead 
@@ -70,13 +70,13 @@ internal partial class Win32Interop
     [LibraryImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool CancelWaitableTimer(
-        IntPtr hTimer // Handle of the timer to cancel
+        SafeTimerHandle hTimer // Handle of the timer to cancel
     );
 
     [LibraryImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetQueuedCompletionStatus(
-        IntPtr completionPort, // Handle to the I/O completion port
+        SafeIoCompletionPortHandle completionPort, // Handle to the I/O completion port
         out uint lpNumberOfBytesTransferred, // Number of bytes transferred in the I/O completion operation.
         out IntPtr lpCompletionKey, // Pointer to the completionKey
         out IntPtr lpOverlapped, // Pointer to a OVERLAPPED structure that was specified when the completed I/O operation was started.
@@ -86,7 +86,7 @@ internal partial class Win32Interop
     [LibraryImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool PostQueuedCompletionStatus(
-        IntPtr completionPort, // Handle to the I/O completion port
+        SafeIoCompletionPortHandle completionPort, // Handle to the I/O completion port
         uint numberOfBytesTransferred, // Value that is returned as lpNumberOfBytesTransferred on GetQueuedCompletionStatus
         IntPtr completionKey, // Value thats returned as lpCompletionKey on GetQueuedCompletionStatus
         IntPtr lpOverlapped // Value thats returned as lpOverlapped on GetQueuedCompletionStatus
@@ -94,7 +94,7 @@ internal partial class Win32Interop
 
     [LibraryImport(NtDll, SetLastError = true)]
     public static partial int NtCancelWaitCompletionPacket(
-        IntPtr WaitCompletionPacketHandle, // Handle to a wait completion package
+        SafeWaitCompletionPacketHandle WaitCompletionPacketHandle, // Handle to a wait completion package
         [MarshalAs(UnmanagedType.Bool)] bool RemoveSignaledPacket // Whether to attempt to cancel a packet from IO completion object queue.
     );
 #else
@@ -107,12 +107,12 @@ internal partial class Win32Interop
     [DllImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetHandleInformation(
-        IntPtr hObject, 
+        SafeHandle hObject, 
         out uint lpdwFlags
     );
 
     [DllImport(KernelDll, SetLastError = true)]
-    public static extern IntPtr CreateIoCompletionPort(
+    public static extern SafeIoCompletionPortHandle CreateIoCompletionPort(
         IntPtr FileHandle, // A file handle or INVALID_HANDLE_VALUE
         IntPtr ExistingCompletionPort, // Handle for an open I/O completion port or null
         IntPtr CompletionKey, // Optional CompletionKey for I/O completion packages
@@ -121,13 +121,13 @@ internal partial class Win32Interop
 
     [DllImport(NtDll, SetLastError = true)]
     public static extern int NtCreateWaitCompletionPacket(
-        out IntPtr WaitCompletionPacketHandle, // Receives the wait completion packet handle
+        out SafeWaitCompletionPacketHandle WaitCompletionPacketHandle, // Receives the wait completion packet handle
         uint DesiredAccess, // Access mask for the wait completion packet
         IntPtr ObjectAttributes // Optional pointer to OBJECT_ATTRIBUTES
     );
 
     [DllImport(KernelDll, SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern IntPtr CreateWaitableTimerExW(
+    public static extern SafeTimerHandle CreateWaitableTimerExW(
         IntPtr lpTimerAttributes, // Optional pointer to a SECURITY_ATTRIBUTES structure
         IntPtr lpTimerName, // Optional pointer to the name of the timer
         uint dwFlags, // Flags for the timer
@@ -136,9 +136,9 @@ internal partial class Win32Interop
 
     [DllImport(NtDll, SetLastError = true)]
     public static extern int NtAssociateWaitCompletionPacket(
-        IntPtr WaitCompletionPacketHandle, // Handle to a wait completion packet
-        IntPtr IoCompletionHandle, // Handle to the I/O completion port
-        IntPtr TargetObjectHandle, // A handle to a waitable object (e.g., timer)
+        SafeWaitCompletionPacketHandle WaitCompletionPacketHandle, // Handle to a wait completion packet
+        SafeIoCompletionPortHandle IoCompletionHandle, // Handle to the I/O completion port
+        SafeHandle TargetObjectHandle, // A handle to a waitable object (e.g., timer)
         IntPtr KeyContext, // Optional key context
         IntPtr ApcContext, // Optional APC context
         int IoStatus, // Status for NtRemoveIoCompletion
@@ -149,7 +149,7 @@ internal partial class Win32Interop
     [DllImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetWaitableTimer(
-        IntPtr hTimer, // Pointer to the timer
+        SafeTimerHandle hTimer, // Pointer to the timer
         ref long lpDueTime, // Due time (absolute or relative in 100ns steps)
         int lPeriod, // Period for recurring timer, 0 for one-shot
         IntPtr pfnCompletionRoutine, // Optional completion routine
@@ -160,13 +160,13 @@ internal partial class Win32Interop
     [DllImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool CancelWaitableTimer(
-        IntPtr hTimer // Handle of the timer to cancel
+        SafeTimerHandle hTimer // Handle of the timer to cancel
     );
 
     [DllImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetQueuedCompletionStatus(
-        IntPtr completionPort, // Handle to the I/O completion port
+        SafeIoCompletionPortHandle completionPort, // Handle to the I/O completion port
         out uint lpNumberOfBytesTransferred, // Bytes transferred in I/O operation
         out IntPtr lpCompletionKey, // Pointer to the completion key
         out IntPtr lpOverlapped, // Pointer to OVERLAPPED structure
@@ -176,7 +176,7 @@ internal partial class Win32Interop
     [DllImport(KernelDll, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool PostQueuedCompletionStatus(
-        IntPtr completionPort, // Handle to the I/O completion port
+        SafeIoCompletionPortHandle completionPort, // Handle to the I/O completion port
         uint numberOfBytesTransferred, // Value for lpNumberOfBytesTransferred
         IntPtr completionKey, // Value for lpCompletionKey
         IntPtr lpOverlapped // Value for lpOverlapped
@@ -184,7 +184,7 @@ internal partial class Win32Interop
 
     [DllImport(NtDll, SetLastError = true)]
     public static extern int NtCancelWaitCompletionPacket(
-        IntPtr WaitCompletionPacketHandle, // Handle to a wait completion packet
+        SafeWaitCompletionPacketHandle WaitCompletionPacketHandle, // Handle to a wait completion packet
         [MarshalAs(UnmanagedType.Bool)] bool RemoveSignaledPacket // Whether to cancel a packet from the IO completion queue
     );
 
