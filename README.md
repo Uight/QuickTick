@@ -131,13 +131,21 @@ The timer therefore has no influence on the remaining program and calls like `Th
 > a fallback implementation built on base .net functions, that provides the same interface.
 > For non windows platforms the accuracy of the functions soly rely on the accurancy of the base `.Net` functions.
 > For some platforms like Linux this works great. But for others there might be limitatons just as windows has them with the 15.6 ms timing.
-> macOS for example seems to have a minimum Sleep time of around 10 ms. (See [Supported Platforms](#supported-platforms))
+> macOS for example seems to have a minimum sleep time of around 10 ms. (See [Supported Platforms](#supported-platforms) for details)
 
 > [!IMPORTANT]
-> The elapsed event is fired on a completion thread. This thread is not the same as the thread that started the timer.
-> Make sure the execution of you elapsed event does not take longer than the interval of the timer or consider 
-> using a decoupling mechanism to process the event on a different thread. This is also true for the fallback timer which altough based
-> on `System.Timers.Timer`, which schedules to thread pool has a logic built in the fallback wrap that ques the events on a single event thread.
+> The `Elapsed` event is fired on a completion thread, which is different from the thread that started the timer.
+> 
+> Ensure that your event handler consistently completes within the configured interval. If execution takes longer or varies significantly,
+> subsequent timer events will be delayed and overall timing accuracy will degrade.
+> 
+> If execution time is inconsistent or may occasionally be long-running, use a decoupling mechanism (e.g. queue, worker thread, or task)
+> to offload processing and keep the timer responsive.
+> 
+> ⚠️ Exceptions thrown inside the event handler will propagate on the completion thread and may terminate it, since the handler is executed
+> directly for performance reasons. Always handle exceptions within your event code.
+> 
+> _This behavior applies to `QuickTickTimer` (both native and fallback implementations on non-Windows systems) and `HighResQuickTickTimer`._
 
 This class implements the `IDisposable` interface. When you are finished using the timer, you should dispose of it to release all associated resources.
 
@@ -322,11 +330,17 @@ The timer provides the same interface as the normal QuickTickTimer but functions
 and according to the remaining time to the next interval either sleeps, yields the thread or spin waits. It therefore needs more CPU than the regular timer, but
 also has a higher precision in the timing events.
 
-For timers with intervals over about 2.5 ms this timer behaves like the HighResTimer by György Kőszeg but needs way less CPU.
-This timer also fully **supports sub millisecond intervals on all systems** as it doesn't rely on the `System.Timers.Timer` implementation.
+This timer fully **supports sub-millisecond intervals on all systems**, as it does not rely on the `System.Timers.Timer` implementation.
+
+> _See `QuickTickTimer` remarks for important details about `Elapsed` event execution, timing constraints, and exception handling._
+
+This timer is conceptually similar to the HighResTimer by György Kőszeg, but uses the QuickTickTiming methods to reduce CPU usage when possible:
+- For intervals below ~2.5 ms, it behaves very similarly in both timing accuracy and CPU usage, relying primarily on spin-waiting.
+- For intervals above ~2.5 ms, it introduces controlled sleep and yield phases, significantly reducing CPU usage while still maintaining very stable timing behavior.
 
 > [!Note]
-> By design this timer uses a whole thread if you set a interval below around 2.5 ms as it then doesn't sleep and instead spin waits only. 
+> For very small intervals (below ~2.5 ms), the timer does not sleep and instead spin-waits continuously.
+> This will effectively utilize an entire CPU core.
 
 ```csharp
 public class HighResQuickTickTimer : IDisposable, IQuickTickTimer

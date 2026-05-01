@@ -123,7 +123,7 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
         completionThread = new Thread(CompletionThreadLoop)
         {
             IsBackground = true,
-            Priority = Thread.CurrentThread.Priority
+            Priority = Priority
         };
         completionThread.Start();
     }
