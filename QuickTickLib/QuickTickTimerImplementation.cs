@@ -96,6 +96,10 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
             {
                 throw new InvalidOperationException($"NtCreateWaitCompletionPacket failed: {status:X8}");
             }
+            if (waitIocpHandle.IsInvalid)
+            {
+                throw new InvalidOperationException("NtCreateWaitCompletionPacket returned success but the handle is invalid.");
+            }
 
             timerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, Win32Interop.CreateWaitableTimerFlag_HIGH_RESOLUTION, QuickTickHelper.CreateWaitableTimerExWAccessRights);
             if (timerHandle.IsInvalid)
