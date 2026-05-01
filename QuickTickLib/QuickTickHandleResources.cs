@@ -8,7 +8,7 @@ internal sealed class QuickTickHandleResources : IDisposable
     public readonly SafeWaitCompletionPacketHandle WaitIocpHandle;
     public readonly SafeTimerHandle TimerHandle;
 
-    public QuickTickHandleResources(double interval)
+    public QuickTickHandleResources()
     {
         try
         {

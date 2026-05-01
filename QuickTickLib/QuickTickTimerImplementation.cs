@@ -78,7 +78,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
         AutoReset = true;
         Interval = interval;
 
-        handles = new QuickTickHandleResources(interval);
+        handles = new QuickTickHandleResources();
     }
 
     public void Start()
