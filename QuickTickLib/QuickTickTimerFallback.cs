@@ -6,7 +6,7 @@ using System.Timers;
 
 namespace QuickTickLib;
 
-internal class QuickTickTimerFallback : IQuickTickTimer
+internal sealed class QuickTickTimerFallback : IQuickTickTimer
 {
     private readonly System.Timers.Timer timer;
     private BlockingCollection<bool>? eventQueue;
