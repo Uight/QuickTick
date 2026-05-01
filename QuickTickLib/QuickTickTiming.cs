@@ -74,7 +74,7 @@ public static class QuickTickTiming
         {
             var handles = externalHandles ?? (localHandles = new QuickTickHandleResources());
 
-            var sleepTimeTicks = -tickToSleep; // negative means relative time
+            var sleepTimeTicks = -tickToSleep; // Negative means relative time
 
             if (!Win32Interop.SetWaitableTimer(handles.TimerHandle, ref sleepTimeTicks, 0, IntPtr.Zero, IntPtr.Zero, false))
             {
@@ -88,16 +88,9 @@ public static class QuickTickTiming
                 throw new InvalidOperationException($"NtAssociateWaitCompletionPacket failed: {ntAssociateWaitCompletionPacketStatus:X8}");
             }
 
-            while (true) // Loop is not strictly neccessary as there should always only be one completion packet.
-            {
-                if (Win32Interop.GetQueuedCompletionStatus(handles.IocpHandle, out _, out var lpCompletionKey, out _, uint.MaxValue))
-                {
-                    if (lpCompletionKey == successCompletionKey)
-                    {
-                        break;
-                    }
-                }
-            }
+            // Checking the return value and the completion key is unnessary since the IOCP is not shared and therefor we expect exactly one completion packet, which is the one we just set up above.
+            // The return value would only be false if the IOCP was disposed in which case we also want to stop waiting because that could only happen when the caller disposes the handles or program is shutting down
+            Win32Interop.GetQueuedCompletionStatus(handles.IocpHandle, out _, out _, out _, uint.MaxValue);
         }
         finally
         {
