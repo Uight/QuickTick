@@ -1,5 +1,6 @@
 ﻿// Some parts of the code are inspired by György Kőszeg's HighRes Timer: https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs
 
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -82,25 +83,35 @@ internal class QuickTickTimerImplementation : IQuickTickTimer
 
     public QuickTickTimerImplementation(double interval)
     {
-        AutoReset = true;
-        Interval = interval;
-
-        iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
-        if (iocpHandle.IsInvalid)
+        try
         {
-            throw new InvalidOperationException($"CreateIoCompletionPort failed: {Marshal.GetLastWin32Error()}");
+            iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
+            if (iocpHandle.IsInvalid)
+            {
+                throw new InvalidOperationException($"CreateIoCompletionPort failed: {Marshal.GetLastWin32Error()}");
+            }
+
+            int status = Win32Interop.NtCreateWaitCompletionPacket(out waitIocpHandle, QuickTickHelper.NtCreateWaitCompletionPacketAccessRights, IntPtr.Zero);
+            if (status != 0)
+            {
+                throw new InvalidOperationException($"NtCreateWaitCompletionPacket failed: {status:X8}");
+            }
+
+            timerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, Win32Interop.CreateWaitableTimerFlag_HIGH_RESOLUTION, QuickTickHelper.CreateWaitableTimerExWAccessRights);
+            if (timerHandle.IsInvalid)
+            {
+                throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");
+            }
+
+            AutoReset = true;
+            Interval = interval;
         }
-
-        int status = Win32Interop.NtCreateWaitCompletionPacket(out waitIocpHandle, QuickTickHelper.NtCreateWaitCompletionPacketAccessRights, IntPtr.Zero);
-        if (status != 0)
+        catch
         {
-            throw new InvalidOperationException($"NtCreateWaitCompletionPacket failed: {status:X8}");
-        }
-
-        timerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, Win32Interop.CreateWaitableTimerFlag_HIGH_RESOLUTION, QuickTickHelper.CreateWaitableTimerExWAccessRights);
-        if (timerHandle.IsInvalid)
-        {
-            throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");
+            iocpHandle?.Dispose();
+            waitIocpHandle?.Dispose();
+            timerHandle?.Dispose();
+            throw;
         }
     }
 
