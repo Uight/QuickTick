@@ -8,7 +8,6 @@ namespace QuickTickLib;
 internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 {
     private readonly QuickTickHandleResources handles;
-
     private static readonly IntPtr successCompletionKey = new(1);
 
     private volatile bool autoReset;
@@ -21,12 +20,13 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
     private long totalSkippedIntervals;
     private readonly Stopwatch stopWatch = new();
 
+    private int disposedState;
+    private readonly object stateLock = new();
+
     private CancellationTokenSource? cancellationTokenSource;
     private Thread? completionThread;
     private ThreadPriority threadPriority = ThreadPriority.Normal;
     private QuickTickElapsedEventHandler? elapsed;
-
-    private int disposedState;
 
     public event QuickTickElapsedEventHandler? Elapsed
     {
@@ -84,63 +84,64 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 
     public void Start()
     {
-        if (isRunning)
+        lock (stateLock)
         {
-            return;
+            if (isRunning)
+            {
+                return;
+            }
+            stopWatch.Restart();
+
+            isRunning = true;
+
+            Interlocked.Exchange(ref nextFireTicks, Interlocked.Read(ref intervalTicks));
+            Interlocked.Exchange(ref totalSkippedIntervals, 0L);
+            Interlocked.Exchange(ref lastFireTicks, 0L);
+
+            SetTimer();
+
+            var cts = new CancellationTokenSource();
+
+            completionThread = new Thread(() => CompletionThreadLoop(cts))
+            {
+                IsBackground = true,
+                Priority = Priority
+            };
+
+            cancellationTokenSource = cts;
+            completionThread.Start();
         }
-        stopWatch.Restart();
-
-        isRunning = true;
-
-        Interlocked.Exchange(ref nextFireTicks, Interlocked.Read(ref intervalTicks));
-        Interlocked.Exchange(ref totalSkippedIntervals, 0L);
-        Interlocked.Exchange(ref lastFireTicks, 0L);
-
-        SetTimer();
-
-        var cts = new CancellationTokenSource();
-
-        completionThread = new Thread(() => CompletionThreadLoop(cts))
-        {
-            IsBackground = true,
-            Priority = Priority
-        };
-
-        cancellationTokenSource = cts;
-        completionThread.Start();
     }
 
     public void Stop()
     {
-        if (!isRunning)
+        lock (stateLock)
         {
-            return;
-        }
+            if (!isRunning)
+            {
+                return;
+            }
 
-        isRunning = false;
-        cancellationTokenSource?.Cancel();
-        cancellationTokenSource?.Dispose();
+            isRunning = false;
+            cancellationTokenSource?.Cancel();
+            cancellationTokenSource = null;
 
-        if (!handles.TimerHandle.IsInvalid)
-        {
             Win32Interop.CancelWaitableTimer(handles.TimerHandle);
-        }
 
-        if (Thread.CurrentThread != completionThread)
-        {
-            // Post a dummy completion to get out of GetQueuedCompletionStatusEx in the completionThread. Use a key different to successCompletionKey
-            // If called from the same thread we know we are called from the event handler code therefore we are not waiting on an event and dont need to send a dummy completion
-            Win32Interop.PostQueuedCompletionStatus(handles.IocpHandle, 0, IntPtr.Zero, IntPtr.Zero);
+            if (Thread.CurrentThread != completionThread)
+            {
+                // Post a dummy completion to get out of GetQueuedCompletionStatusEx in the completionThread. Use a key different to successCompletionKey
+                // If called from the same thread we know we are called from the event handler code therefore we are not waiting on an event and dont need to send a dummy completion
+                Win32Interop.PostQueuedCompletionStatus(handles.IocpHandle, 0, IntPtr.Zero, IntPtr.Zero);
 
-            completionThread?.Join();
-        }
-        completionThread = null;
+                completionThread?.Join();
+            }
+            completionThread = null;
 
-        if (!handles.WaitIocpHandle.IsInvalid)
-        {
             Win32Interop.NtCancelWaitCompletionPacket(handles.WaitIocpHandle, true);
+           
+            stopWatch.Reset();
         }
-        stopWatch.Reset();
     }
 
     public void Dispose()
@@ -166,7 +167,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
         long dueTime = Interlocked.Read(ref nextFireTicks) - stopWatch.ElapsedTicks; // Calculate absolute expiration
         dueTime = dueTime < 0 ? 0 : -dueTime; // Ensure valid time
 
-        if (!Win32Interop.SetWaitableTimer(handles.TimerHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false))
+        if (!Win32Interop.SetWaitableTimer(handles.TimerHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false)) // Setting the period to 0 makes the timer fire exactly once
         {
             throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
         }
@@ -185,10 +186,15 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
         {
             var getStatusResult = Win32Interop.GetQueuedCompletionStatus(handles.IocpHandle, out _, out var lpCompletionKey, out _, uint.MaxValue);
 
-            // Check if we were canceled while waiting (External cancel / cancel from other thread). The two secondary checks should not be needed
-            if (cancellationTokenSource.IsCancellationRequested || !getStatusResult || lpCompletionKey != successCompletionKey)
+            // Check if we were canceled while waiting (external cancel / cancel from other thread). The secondary check should not be needed
+            if (cancellationTokenSource.IsCancellationRequested || !getStatusResult)
             {
                 break;
+            }
+
+            if (lpCompletionKey != successCompletionKey)
+            {
+                continue; // In rare timing cases e.g. when external Stop is called while in user code the old invalid completion packet to stop the wait might still be present so we ignore it;
             }
 
             var currentTicks = stopWatch.ElapsedTicks;
@@ -226,12 +232,9 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
             }
             else
             {
-                isRunning = false;
+                isRunning = false; // Same logic as in System.Timers.Timer resetting "Enabled" (here: isRunning) back before running the handler if autoreset is disabled
                 stopWatch.Reset();
-                if (!handles.TimerHandle.IsInvalid)
-                {
-                    Win32Interop.CancelWaitableTimer(handles.TimerHandle);
-                }
+                cancellationTokenSource.Cancel();
             }
     
             var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
