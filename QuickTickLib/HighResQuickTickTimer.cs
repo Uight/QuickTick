@@ -151,6 +151,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
 
         running = false;
         cancellationTokenSource?.Cancel();
+        cancellationTokenSource?.Dispose();
     }
 
     private void RunTimer(CancellationTokenSource cancellationTokenSource)
