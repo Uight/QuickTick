@@ -1,4 +1,4 @@
-﻿// Some parts of the code are inspired by György Kőszeg's HighRes Timer: https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs
+// Some parts of the code are inspired by György Kőszeg's HighRes Timer: https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -14,10 +14,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
     private volatile bool skipMissedIntervals;
     private ThreadPriority threadPriority = ThreadPriority.Normal;
     private Thread? workerThread;
-    private long skippedIntervals;
     private QuickTickElapsedEventHandler? elapsed;
-    private readonly Stopwatch stopWatch = new();
-    private long lastFireTicks;
     private readonly object stateLock = new();
 
     public double Interval
@@ -32,7 +29,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
         set => timer.AutoReset = value;
     }
 
-    public bool SkipMissedIntervals 
+    public bool SkipMissedIntervals
     {
         get => skipMissedIntervals;
         set => skipMissedIntervals = value;
@@ -47,7 +44,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
             if (workerThread != null)
             {
                 workerThread.Priority = value;
-            }         
+            }
         }
     }
 
@@ -72,12 +69,9 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
             {
                 return;
             }
-            stopWatch.Restart();
 
             running = true;
             eventQueue = [];
-            skippedIntervals = 0;
-            lastFireTicks = 0;
 
             workerThread = new Thread(() => Run(eventQueue))
             {
@@ -98,7 +92,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
             {
                 return;
             }
-            
+
             running = false;
             timer.Stop();
             eventQueue?.CompleteAdding();
@@ -108,8 +102,6 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
                 workerThread?.Join();
             }
             workerThread = null;
-            
-            stopWatch.Reset();
         }
     }
 
@@ -120,12 +112,16 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
     private void Run(BlockingCollection<bool> localEventQueue)
     {
+        var stopWatch = Stopwatch.StartNew();
+        var lastFireTicks = 0L;
+        var skippedIntervals = 0L;
+
         while (running)
         {
             // Wait for at least one callback
             if (!localEventQueue.TryTake(out _, Timeout.Infinite))
             {
-                break; // In this case the CompleteAdding was called
+                break; // CompleteAdding was called
             }
 
             // If skipping is enabled, drain queue and only keep the latest
@@ -152,8 +148,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
             if (!AutoReset)
             {
-                running = false;
-                stopWatch.Reset();
+                running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
                 var handler = elapsed;
                 handler?.Invoke(this, elapsedEventArgs);
                 break;

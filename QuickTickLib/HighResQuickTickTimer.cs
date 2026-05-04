@@ -166,8 +166,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
 
     private void RunTimer(CancellationTokenSource localCancellationTokenSource)
     {
-        var stopWatch = new Stopwatch();
-        stopWatch.Start();
+        var stopWatch = Stopwatch.StartNew();
         var nextTriggerTicks = intervalTicks;
         var skippedIntervals = 0L;
         var lastFireTicks = 0L;

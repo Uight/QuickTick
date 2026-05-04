@@ -1,4 +1,4 @@
-﻿// Some parts of the code are inspired by György Kőszeg's HighRes Timer: https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs
+// Some parts of the code are inspired by György Kőszeg's HighRes Timer: https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -8,17 +8,14 @@ namespace QuickTickLib;
 internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 {
     private readonly QuickTickHandleResources handles;
-    private static readonly IntPtr SuccessCompletionKey = new(1);
+    private static readonly IntPtr CancelCompletionKey = IntPtr.Zero;
 
     private volatile bool autoReset;
     private volatile bool skipMissedIntervals;
     private volatile bool running;
     private volatile float intervalMs;
     private long intervalTicks;
-    private long nextFireTicks;
-    private long lastFireTicks;
-    private long totalSkippedIntervals;
-    private readonly Stopwatch stopWatch = new();
+    private int currentRunKey;
 
     private int disposedState;
     private readonly object stateLock = new();
@@ -70,7 +67,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
             if (completionThread is { IsAlive: true })
             {
                 completionThread.Priority = value;
-            }           
+            }
         }
     }
 
@@ -78,7 +75,6 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
     {
         AutoReset = true;
         Interval = interval;
-
         handles = new QuickTickHandleResources();
     }
 
@@ -90,19 +86,14 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
             {
                 return;
             }
-            stopWatch.Restart();
 
             running = true;
-
-            Interlocked.Exchange(ref nextFireTicks, Interlocked.Read(ref intervalTicks));
-            Interlocked.Exchange(ref totalSkippedIntervals, 0L);
-            Interlocked.Exchange(ref lastFireTicks, 0L);
-
-            SetTimer();
-
             var cts = new CancellationTokenSource();
 
-            completionThread = new Thread(() => CompletionThreadLoop(cts))
+            var key = ++currentRunKey == 0 ? ++currentRunKey : currentRunKey;
+            var runKey = new IntPtr(key);
+
+            completionThread = new Thread(() => CompletionThreadLoop(cts, runKey))
             {
                 IsBackground = true,
                 Priority = Priority
@@ -132,15 +123,13 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
             {
                 // Post a dummy completion to get out of GetQueuedCompletionStatusEx in the completionThread. Use a key different to successCompletionKey
                 // If called from the same thread we know we are called from the event handler code therefore we are not waiting on an event and don't need to send a dummy completion
-                Win32Interop.PostQueuedCompletionStatus(handles.IocpHandle, 0, IntPtr.Zero, IntPtr.Zero);
+                Win32Interop.PostQueuedCompletionStatus(handles.IocpHandle, 0, CancelCompletionKey, IntPtr.Zero);
 
                 completionThread?.Join();
             }
             completionThread = null;
 
             Win32Interop.NtCancelWaitCompletionPacket(handles.WaitIocpHandle, true);
-           
-            stopWatch.Reset();
         }
     }
 
@@ -162,86 +151,91 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
         }
     }
 
-    private void SetTimer()
+    private void CompletionThreadLoop(CancellationTokenSource localCancellationTokenSource, IntPtr runKey)
     {
-        long dueTime = Interlocked.Read(ref nextFireTicks) - stopWatch.ElapsedTicks; // Calculate absolute expiration
-        dueTime = dueTime < 0 ? 0 : -dueTime; // Ensure valid time
+        Console.WriteLine($"{nameof(CompletionThreadLoop)} started with {runKey}");
+        
+        var stopWatch = Stopwatch.StartNew();
+        var nextFireTicks = Interlocked.Read(ref intervalTicks);
+        var lastFireTicks = 0L;
+        var skippedIntervals = 0L;
+
+        SetTimer(stopWatch, nextFireTicks, runKey);
+
+        while (!localCancellationTokenSource.IsCancellationRequested)
+        {
+            var getStatusResult = Win32Interop.GetQueuedCompletionStatus(handles.IocpHandle, out _, out var lpCompletionKey, out _, uint.MaxValue);
+
+            if (localCancellationTokenSource.IsCancellationRequested || !getStatusResult)
+            {
+                break;
+            }
+
+            if (lpCompletionKey != runKey)
+            {
+                continue; // Ignore stale packet from a previous run or old cancel events; Cancel packet only used to get out of wait the actual cancel is done via the cts
+            }
+
+            var currentTicks = stopWatch.ElapsedTicks;
+            var lastFireTicksLocal = lastFireTicks;
+            lastFireTicks = currentTicks;
+
+            if (autoReset)
+            {
+                var interval = Interlocked.Read(ref intervalTicks);
+                nextFireTicks += interval;
+
+                if (skipMissedIntervals)
+                {
+                    while (nextFireTicks < currentTicks)
+                    {
+                        nextFireTicks += interval;
+                        if (skippedIntervals < long.MaxValue)
+                        {
+                            skippedIntervals++;
+                        }
+                    }
+                }
+
+                if (stopWatch.Elapsed.TotalHours >= 1)
+                {
+                    var remaining = nextFireTicks - currentTicks;
+                    stopWatch.Restart();
+                    nextFireTicks = remaining;
+                    lastFireTicks = 0;
+                }
+
+                SetTimer(stopWatch, nextFireTicks, runKey);
+            }
+            else
+            {
+                running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
+                localCancellationTokenSource.Cancel();
+            }
+
+            var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
+            var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
+
+            var handler = elapsed;
+            handler?.Invoke(this, elapsedEventArgs);
+        }
+    }
+    
+    private void SetTimer(Stopwatch stopWatch, long nextFireTicks, IntPtr runKey)
+    {
+        long dueTime = nextFireTicks - stopWatch.ElapsedTicks;
+        dueTime = dueTime < 0 ? 0 : -dueTime; // Negative = relative time for SetWaitableTimer
 
         if (!Win32Interop.SetWaitableTimer(handles.TimerHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false)) // Setting the period to 0 makes the timer fire exactly once
         {
             throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
         }
 
-        int status = Win32Interop.NtAssociateWaitCompletionPacket(handles.WaitIocpHandle, handles.IocpHandle, handles.TimerHandle, SuccessCompletionKey, IntPtr.Zero, 0, IntPtr.Zero, out _);
+        int status = Win32Interop.NtAssociateWaitCompletionPacket(handles.WaitIocpHandle, handles.IocpHandle, handles.TimerHandle, runKey, IntPtr.Zero, 0, IntPtr.Zero, out _);
 
         if (status != 0)
         {
             throw new InvalidOperationException($"NtAssociateWaitCompletionPacket failed: {status:X8}");
-        }
-    }
-
-    private void CompletionThreadLoop(CancellationTokenSource localCancellationTokenSource)
-    {
-        while (!localCancellationTokenSource.IsCancellationRequested)
-        {
-            var getStatusResult = Win32Interop.GetQueuedCompletionStatus(handles.IocpHandle, out _, out var lpCompletionKey, out _, uint.MaxValue);
-
-            // Check if we were canceled while waiting (external cancel / cancel from other thread). The secondary check should not be needed
-            if (localCancellationTokenSource.IsCancellationRequested || !getStatusResult)
-            {
-                break;
-            }
-
-            if (lpCompletionKey != SuccessCompletionKey)
-            {
-                continue; // In rare timing cases e.g. when external Stop is called while in user code the old invalid completion packet to stop the wait might still be present so we ignore it;
-            }
-
-            var currentTicks = stopWatch.ElapsedTicks;
-            var lastFireTicksLocal = Interlocked.Read(ref lastFireTicks);
-            Interlocked.Exchange(ref lastFireTicks, currentTicks);
-            var skippedIntervals = Interlocked.Read(ref totalSkippedIntervals);
-
-            if (autoReset)
-            {
-                var interval = Interlocked.Read(ref intervalTicks);
-                var nextTicks = Interlocked.Add(ref nextFireTicks, interval);           
-
-                if (skipMissedIntervals)
-                {
-                    while (nextTicks < currentTicks)
-                    {
-                        nextTicks = Interlocked.Add(ref nextFireTicks, interval);
-                        if (skippedIntervals < long.MaxValue)
-                        {
-                            skippedIntervals++;
-                        }
-                    }
-                    Interlocked.Exchange(ref totalSkippedIntervals, skippedIntervals);
-                }
-
-                if (stopWatch.Elapsed.TotalHours >= 1)
-                {
-                    var remaining = nextTicks - currentTicks;
-                    stopWatch.Restart();
-                    Interlocked.Exchange(ref nextFireTicks, remaining);
-                    Interlocked.Exchange(ref lastFireTicks, 0L);
-                }
-
-                SetTimer();
-            }
-            else
-            {
-                running = false; // Same logic as in System.Timers.Timer resetting "Enabled" (here: isRunning) back before running the handler if autoReset is disabled
-                stopWatch.Reset();
-                localCancellationTokenSource.Cancel();
-            }
-    
-            var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
-            var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
-
-            var handler = elapsed;
-            handler?.Invoke(this, elapsedEventArgs);
         }
     }
 }

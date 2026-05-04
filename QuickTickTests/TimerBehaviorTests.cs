@@ -207,7 +207,6 @@ public class TimerBehaviorTests
         using var timer = CreateTimer(kind);
         var skips = new ConcurrentQueue<long>();
         var inFirstRun = new[] { true }; 
-        var secondRunFired = new ManualResetEventSlim(false);
 
         timer.Elapsed += (_, args) =>
         {
@@ -215,10 +214,6 @@ public class TimerBehaviorTests
             if (inFirstRun[0])
             {
                 Thread.Sleep(30); // Accumulate skips during the first run
-            }
-            else
-            {
-                secondRunFired.Set();
             }
         };
         timer.SkipMissedIntervals = true;
