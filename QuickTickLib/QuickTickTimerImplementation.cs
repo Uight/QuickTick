@@ -173,7 +173,9 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 
             if (lpCompletionKey != runKey)
             {
-                continue; // Ignore stale packet from a previous run or old cancel events; Cancel packet only used to get out of wait the actual cancel is done via the cts
+                // Ignore stale packet from a previous run or old cancel events; Cancel packet only used to get out of wait the actual cancel is done via the cts
+                // Cancel packets can still be present when the cancel is external and happens after the GetQueuedCompletionStatus call (e.g. while user code is running)
+                continue; 
             }
 
             var currentTicks = stopWatch.ElapsedTicks;
