@@ -5,9 +5,10 @@ namespace QuickTickLib;
 public static class QuickTickTiming
 {
     // Testing showed that waiting 0.5ms results in around 1ms average waiting while going to 0.4ms results in an average of 0.5ms wait time
-    private const long fourHundredMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.4);
-    private static readonly IntPtr successCompletionKey = new(1);
+    private const long FourHundredMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.4);
+    private static readonly IntPtr SuccessCompletionKey = new(1);
 
+    // ReSharper disable once MemberCanBePrivate.Global
     public static async Task Delay(int millisecondsDelay, CancellationToken cancellationToken = default)
     {
         var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
@@ -58,7 +59,7 @@ public static class QuickTickTiming
         var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
         if (isQuickTickSupported)
         {       
-            QuickTickSleep(fourHundredMicroSecondInTicks);
+            QuickTickSleep(FourHundredMicroSecondInTicks);
         }
         else
         {
@@ -81,14 +82,14 @@ public static class QuickTickTiming
                 throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
             }
 
-            int ntAssociateWaitCompletionPacketStatus = Win32Interop.NtAssociateWaitCompletionPacket(handles.WaitIocpHandle, handles.IocpHandle, handles.TimerHandle, successCompletionKey, IntPtr.Zero, 0, IntPtr.Zero, out _);
+            int ntAssociateWaitCompletionPacketStatus = Win32Interop.NtAssociateWaitCompletionPacket(handles.WaitIocpHandle, handles.IocpHandle, handles.TimerHandle, SuccessCompletionKey, IntPtr.Zero, 0, IntPtr.Zero, out _);
 
             if (ntAssociateWaitCompletionPacketStatus != 0)
             {
                 throw new InvalidOperationException($"NtAssociateWaitCompletionPacket failed: {ntAssociateWaitCompletionPacketStatus:X8}");
             }
 
-            // Checking the return value and the completion key is unnessary since the IOCP is not shared and therefor we expect exactly one completion packet, which is the one we just set up above.
+            // Checking the return value and the completion key is unnecessary since the IOCP is not shared and therefor we expect exactly one completion packet, which is the one we just set up above.
             // The return value would only be false if the IOCP was disposed in which case we also want to stop waiting because that could only happen when the caller disposes the handles or program is shutting down
             Win32Interop.GetQueuedCompletionStatus(handles.IocpHandle, out _, out _, out _, uint.MaxValue);
         }

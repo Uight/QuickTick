@@ -22,10 +22,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
     public double Interval
     {
         get => timer.Interval;
-        set
-        {
-            timer.Interval = value;
-        }
+        set => timer.Interval = value;
     }
 
     public bool AutoReset
@@ -37,10 +34,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
     public bool SkipMissedIntervals 
     {
         get => skipMissedIntervals;
-        set
-        {
-            skipMissedIntervals = value;
-        }
+        set => skipMissedIntervals = value;
     }
 
     public ThreadPriority Priority

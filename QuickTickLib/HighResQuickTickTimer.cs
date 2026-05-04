@@ -12,8 +12,8 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     private volatile bool running;
     private volatile bool skipMissedIntervals;
     private volatile float intervalMs;
-    private volatile float sleepThreshold = 1.5f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensivly testing with the TimingReportGenerator
-    private volatile float yieldThreshold = 0.75f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensivly testing with the TimingReportGenerator
+    private volatile float sleepThreshold = 1.5f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
+    private volatile float yieldThreshold = 0.75f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
     private long intervalTicks;
     private ThreadPriority threadPriority = ThreadPriority.Highest;
     private CancellationTokenSource? cancellationTokenSource;
@@ -44,10 +44,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     public bool SkipMissedIntervals
     {
         get => skipMissedIntervals;
-        set
-        {
-            skipMissedIntervals = value;
-        }
+        set => skipMissedIntervals = value;
     }
 
     public ThreadPriority Priority
@@ -56,7 +53,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
         set
         {
             threadPriority = value;
-            if (workerThread != null)
+            if (workerThread is { IsAlive: true })
             {
                 workerThread.Priority = value;
             }
@@ -100,7 +97,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     /// Increasing this time can lead to better timing but increases CPU usage as the code will SpinWait instead.
     /// Must be at least 0.0 and at most the value of SleepThreshold. 
     /// Setting YieldThreshold equal to SleepThreshold disables yielding (goes directly to spin wait).
-    /// Setting YieldThreshold equal to 0.0 will basically disable spin waiting altough if no process is ready to run on this thread the behavior is almost the same.
+    /// Setting YieldThreshold equal to 0.0 will basically disable spin waiting although if no process is ready to run on this thread the behavior is almost the same.
     /// </summary>
     public double YieldThreshold
     {
@@ -154,7 +151,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
         cancellationTokenSource?.Dispose();
     }
 
-    private void RunTimer(CancellationTokenSource cancellationTokenSource)
+    private void RunTimer(CancellationTokenSource localCancellationTokenSource)
     {
         var stopWatch = new Stopwatch();
         stopWatch.Start();
@@ -162,7 +159,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
         var skippedIntervals = 0L;
         var lastFireTicks = 0L;
 
-        while (!cancellationTokenSource.IsCancellationRequested)
+        while (!localCancellationTokenSource.IsCancellationRequested)
         {      
             while (true)
             {                
@@ -185,7 +182,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
                     Thread.SpinWait(10);
                 }
 
-                if (cancellationTokenSource.IsCancellationRequested)
+                if (localCancellationTokenSource.IsCancellationRequested)
                 {
                     stopWatch.Reset();
                     return;
@@ -220,7 +217,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
             var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
 
-            if (!cancellationTokenSource.IsCancellationRequested)
+            if (!localCancellationTokenSource.IsCancellationRequested)
             {
                 var handler = elapsed;
                 handler?.Invoke(this, elapsedEventArgs);
