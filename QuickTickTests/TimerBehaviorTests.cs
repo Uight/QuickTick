@@ -64,9 +64,7 @@ public class TimerBehaviorTests
         Thread.Sleep(500); // Extra time for any rogue second fire
         Assert.That(count, Is.EqualTo(1));
     }
-
-    // --- Stop / Start lifecycle ---
-
+    
     [TestCaseSource(nameof(AllTimerKinds))]
     public void Stop_PreventsSubsequentFires(string kind)
     {

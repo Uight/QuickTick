@@ -129,6 +129,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
             }
             completionThread = null;
 
+            // Call cancels the wait completion packets; needed because there can not be two consecutive calls to NtAssociateWaitCompletionPacket which could happen in some stop restart scenarios
             Win32Interop.NtCancelWaitCompletionPacket(handles.WaitIocpHandle, true);
         }
     }
