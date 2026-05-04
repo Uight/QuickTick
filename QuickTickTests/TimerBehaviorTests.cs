@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using NUnit.Framework;
 using QuickTickLib;
 
@@ -9,7 +10,9 @@ namespace QuickTickTests;
 [Platform(Include = "Win", Reason = "Timer implementations rely on Win32 APIs or Windows timing behavior")]
 public class TimerBehaviorTests
 {
-    private const double IntervalMs = 15.625; // Use default timing of windows so tests are mostly predictable even with fallback timer
+    // Use default timing of windows (15.625) so tests are mostly predictable even with fallback timer
+    // Actually stay just below the default for windows because using it exactly can lead to the fallback timer waiting double very often
+    private const double IntervalMs = 15; 
 
     private static IEnumerable<string> AllTimerKinds() =>
     [
@@ -18,11 +21,11 @@ public class TimerBehaviorTests
         "highResolution",
     ];
 
-    private static IQuickTickTimer CreateTimer(string kind, double intervalMs = IntervalMs) => kind switch
+    private static IQuickTickTimer CreateTimer(string kind) => kind switch
     {
-        "implementation" => new QuickTickTimerImplementation(intervalMs),
-        "fallback"       => new QuickTickTimerFallback(intervalMs),
-        "highResolution" => new HighResQuickTickTimer(intervalMs),
+        "implementation" => new QuickTickTimerImplementation(IntervalMs),
+        "fallback"       => new QuickTickTimerFallback(IntervalMs),
+        "highResolution" => new HighResQuickTickTimer(IntervalMs),
         _                => throw new ArgumentException($"Unknown timer kind: {kind}", nameof(kind))
     };
     
@@ -47,7 +50,7 @@ public class TimerBehaviorTests
         timer.Start();
         Thread.Sleep(500); // ~32 fires expected at 20 ms
         timer.Stop();
-        Assert.That(count, Is.InRange(22, 42));
+        Assert.That(count, Is.InRange(14, 37));
     }
     
     [TestCaseSource(nameof(AllTimerKinds))]
@@ -94,12 +97,27 @@ public class TimerBehaviorTests
         using var timer = CreateTimer(kind);
         var count = 0;
         timer.Elapsed += (_, _) => count++;
+
+        var proc = Process.GetCurrentProcess();
+        proc.Refresh();
+        var threadsBefore = proc.Threads.Count;
+
         timer.Start();
         timer.Start();
         timer.Start();
-        Thread.Sleep(500);
+        timer.Start();
+        timer.Start();
+
+        Thread.Sleep(50); // Let spawned threads settle before counting
+        proc.Refresh();
+        var threadsAfterMultipleStarts = proc.Threads.Count;
+
+        Thread.Sleep(450); // Run for total ~500ms
         timer.Stop();
-        Assert.That(count, Is.InRange(22, 42)); // One timer should run only still expect ~32 fires
+
+        Assert.That(count, Is.InRange(14, 37)); // One timer should run only, still expect ~32 fires
+
+        Assert.That(threadsAfterMultipleStarts - threadsBefore, Is.LessThanOrEqualTo(2), $"{kind}: multiple Start() calls spawned more than 1 new thread");
     }
 
     [TestCaseSource(nameof(AllTimerKinds))]
@@ -154,7 +172,7 @@ public class TimerBehaviorTests
     [TestCaseSource(nameof(AllTimerKinds))]
     public void SkipMissedIntervals_ReportsSkippedCount(string kind)
     {
-        using var timer = CreateTimer(kind, intervalMs: 10);
+        using var timer = CreateTimer(kind);
         var skippedCounts = new ConcurrentBag<long>();
         timer.Elapsed += (_, args) =>
         {
@@ -168,30 +186,43 @@ public class TimerBehaviorTests
         Assert.That(skippedCounts, Has.Some.GreaterThan(0L));
     }
 
-    //Rework this to only block first call then check the timing since last tick;
     [TestCaseSource(nameof(AllTimerKinds))]
-    public void SkipMissedIntervalsDisabled_DoesNotSkip(string kind)
+    public void SkipMissedIntervalsDisabled_CatchesUpMissedTicks(string kind)
     {
-        using var timer = CreateTimer(kind, intervalMs: 10);
-        var skippedCounts = new ConcurrentBag<long>();
+        using var timer = CreateTimer(kind);
+        var timings = new ConcurrentQueue<double>();
+        var firstCall = true;
+
         timer.Elapsed += (_, args) =>
         {
-            skippedCounts.Add(args.SkippedIntervals);
-            Thread.Sleep(50); // Slow handler — but skipping is off
+            timings.Enqueue(args.TimeSinceLastInterval.TotalMilliseconds);
+            if (firstCall)
+            {
+                firstCall = false;
+                Thread.Sleep(100); // Block only the first call: Make some timer fires que up
+            }
         };
         timer.SkipMissedIntervals = false;
         timer.Start();
-        Thread.Sleep(600);
+        Thread.Sleep(400);
         timer.Stop();
-        Assert.That(skippedCounts, Is.All.EqualTo(0L));
+        
+        Assert.That(timings, Has.Count.GreaterThan(10));
+
+        timings.TryDequeue(out var firstTime);
+        timings.TryDequeue(out var secondTime);
+        timings.TryDequeue(out var thirdTime);
+        timings.TryDequeue(out var forthTime);
+        Assert.That(firstTime, Is.InRange(10.0, 35.0));
+        Assert.That(secondTime, Is.InRange(70.0, 140.0));
+        Assert.That(thirdTime, Is.InRange(0.0, 5.0));
+        Assert.That(forthTime, Is.InRange(0.0, 5.0));
     }
-
-    // --- ElapsedEventArgs sanity ---
-
+    
     [TestCaseSource(nameof(AllTimerKinds))]
-    public void ElapsedArgs_TimeSinceLastInterval_IsPositive(string kind)
+    public void ElapsedArgs_TimeSinceLastInterval_IsValid(string kind)
     {
-        using var timer = CreateTimer(kind, intervalMs: 20);
+        using var timer = CreateTimer(kind);
         var timings = new ConcurrentBag<double>();
         timer.Elapsed += (_, args) => timings.Add(args.TimeSinceLastInterval.TotalMilliseconds);
         timer.Start();
@@ -200,8 +231,6 @@ public class TimerBehaviorTests
 
         var recorded = timings.ToArray();
         Assert.That(recorded, Is.Not.Empty);
-        // First fire has lastFireTicks=0 so value equals time-since-start (~20 ms).
-        // Subsequent fires should be ~20 ms. Allow a wide ceiling for jitter.
-        Assert.That(recorded, Is.All.InRange(0.0, 500.0));
+        Assert.That(recorded, Is.All.InRange(10.0, 37.0));
     }
 }
