@@ -98,10 +98,17 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
             {
                 return;
             }
-
-            timer.Stop();
+            
             running = false;
+            timer.Stop();
             eventQueue?.CompleteAdding();
+
+            if (Thread.CurrentThread != workerThread)
+            {
+                workerThread?.Join();
+            }
+            workerThread = null;
+            
             stopWatch.Reset();
         }
     }

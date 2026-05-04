@@ -154,7 +154,13 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
 
             running = false;
             cancellationTokenSource?.Cancel();
-            cancellationTokenSource?.Dispose();
+            cancellationTokenSource = null;
+            
+            if (Thread.CurrentThread != workerThread)
+            {
+                workerThread?.Join();
+            }
+            workerThread = null;
         }
     }
 

@@ -12,7 +12,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 
     private volatile bool autoReset;
     private volatile bool skipMissedIntervals;
-    private volatile bool isRunning;
+    private volatile bool running;
     private volatile float intervalMs;
     private long intervalTicks;
     private long nextFireTicks;
@@ -86,13 +86,13 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
     {
         lock (stateLock)
         {
-            if (isRunning)
+            if (running)
             {
                 return;
             }
             stopWatch.Restart();
 
-            isRunning = true;
+            running = true;
 
             Interlocked.Exchange(ref nextFireTicks, Interlocked.Read(ref intervalTicks));
             Interlocked.Exchange(ref totalSkippedIntervals, 0L);
@@ -117,12 +117,12 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
     {
         lock (stateLock)
         {
-            if (!isRunning)
+            if (!running)
             {
                 return;
             }
 
-            isRunning = false;
+            running = false;
             cancellationTokenSource?.Cancel();
             cancellationTokenSource = null;
 
@@ -232,7 +232,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
             }
             else
             {
-                isRunning = false; // Same logic as in System.Timers.Timer resetting "Enabled" (here: isRunning) back before running the handler if autoReset is disabled
+                running = false; // Same logic as in System.Timers.Timer resetting "Enabled" (here: isRunning) back before running the handler if autoReset is disabled
                 stopWatch.Reset();
                 localCancellationTokenSource.Cancel();
             }

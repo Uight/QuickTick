@@ -306,6 +306,27 @@ public class TimerBehaviorTests
     }
 
     [TestCaseSource(nameof(AllTimerKinds))]
+    public void Stop_BlocksUntilCurrentHandlerCompletes(string kind)
+    {
+        using var timer = CreateTimer(kind);
+        var handlerStarted  = new ManualResetEventSlim(false);
+        var handlerFinished = new ManualResetEventSlim(false);
+
+        timer.Elapsed += (_, _) =>
+        {
+            handlerStarted.Set();
+            Thread.Sleep(150);
+            handlerFinished.Set();
+        };
+
+        timer.Start();
+        Assert.That(handlerStarted.Wait(TimeSpan.FromMilliseconds(500)), Is.True, "handler should start within 500 ms");
+
+        timer.Stop();
+        Assert.That(handlerFinished.IsSet, Is.True, $"{kind}: Stop() must block until the handler completes (thread join)");
+    }
+
+    [TestCaseSource(nameof(AllTimerKinds))]
     public void ElapsedArgs_TimeSinceLastInterval_IsValid(string kind)
     {
         using var timer = CreateTimer(kind);
