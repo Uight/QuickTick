@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="QuickTickTimingReportGenerator" />
+    <InternalsVisibleTo Include="QuickTickTests" />
   </ItemGroup>
 
 </Project>

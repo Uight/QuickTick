@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.12.35728.132
@@ -10,6 +10,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuickTestProjectNetFramework", "QuickTestProjectNetFramework\QuickTestProjectNetFramework.csproj", "{403A72CA-519F-E2D4-5CE9-F668ACDC2C0E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuickTickTimingReportGenerator", "QuickTickTimingReportGenerator\QuickTickTimingReportGenerator.csproj", "{92D3CA21-9E4F-4BA2-81E6-5FE236D70D9E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuickTickTests", "QuickTickTests\QuickTickTests.csproj", "{F205E39B-6567-446B-ABFA-8DA18CC90ED3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +35,10 @@ Global
 		{92D3CA21-9E4F-4BA2-81E6-5FE236D70D9E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{92D3CA21-9E4F-4BA2-81E6-5FE236D70D9E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{92D3CA21-9E4F-4BA2-81E6-5FE236D70D9E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F205E39B-6567-446B-ABFA-8DA18CC90ED3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F205E39B-6567-446B-ABFA-8DA18CC90ED3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F205E39B-6567-446B-ABFA-8DA18CC90ED3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F205E39B-6567-446B-ABFA-8DA18CC90ED3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
