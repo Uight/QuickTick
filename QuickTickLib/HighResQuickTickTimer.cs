@@ -18,6 +18,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     private ThreadPriority threadPriority = ThreadPriority.Highest;
     private CancellationTokenSource? cancellationTokenSource;
     private Thread? workerThread;
+    private readonly object stateLock = new();
     private QuickTickElapsedEventHandler? elapsed;
 
     public double Interval
@@ -121,34 +122,40 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
 
     public void Start()
     {
-        if (running)
+        lock (stateLock)
         {
-            return;
+            if (running)
+            {
+                return;
+            }
+
+            running = true;
+            var cts = new CancellationTokenSource();
+
+            workerThread = new Thread(() => RunTimer(cts))
+            {
+                IsBackground = true,
+                Priority = Priority
+            };
+
+            cancellationTokenSource = cts;
+            workerThread.Start();
         }
-
-        running = true;
-        var cts = new CancellationTokenSource();
-
-        workerThread = new Thread(() => RunTimer(cts))
-        {
-            IsBackground = true,
-            Priority = Priority
-        };
-
-        cancellationTokenSource = cts;
-        workerThread.Start();
     }
 
     public void Stop()
     {
-        if (!running)
+        lock (stateLock)
         {
-            return;
-        }
+            if (!running)
+            {
+                return;
+            }
 
-        running = false;
-        cancellationTokenSource?.Cancel();
-        cancellationTokenSource?.Dispose();
+            running = false;
+            cancellationTokenSource?.Cancel();
+            cancellationTokenSource?.Dispose();
+        }
     }
 
     private void RunTimer(CancellationTokenSource localCancellationTokenSource)

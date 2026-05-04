@@ -18,6 +18,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
     private QuickTickElapsedEventHandler? elapsed;
     private readonly Stopwatch stopWatch = new();
     private long lastFireTicks;
+    private readonly object stateLock = new();
 
     public double Interval
     {
@@ -65,38 +66,44 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
     public void Start()
     {
-        if (running)
+        lock (stateLock)
         {
-            return;
+            if (running)
+            {
+                return;
+            }
+            stopWatch.Restart();
+
+            running = true;
+            eventQueue = [];
+            skippedIntervals = 0;
+            lastFireTicks = 0;
+
+            workerThread = new Thread(() => Run(eventQueue))
+            {
+                IsBackground = true,
+                Priority = Priority
+            };
+
+            workerThread.Start();
+            timer.Start();
         }
-        stopWatch.Restart();
-
-        running = true;
-        eventQueue = [];
-        skippedIntervals = 0;
-        lastFireTicks = 0;
-
-        workerThread = new Thread(() => Run(eventQueue))
-        {
-            IsBackground = true,
-            Priority = Priority
-        };
-
-        workerThread.Start();
-        timer.Start();
     }
 
     public void Stop()
     {
-        if (!running)
+        lock (stateLock)
         {
-            return;
-        }
+            if (!running)
+            {
+                return;
+            }
 
-        timer.Stop();
-        running = false;
-        eventQueue?.CompleteAdding();
-        stopWatch.Reset();
+            timer.Stop();
+            running = false;
+            eventQueue?.CompleteAdding();
+            stopWatch.Reset();
+        }
     }
 
     private void OnElapsedInternal(object? sender, ElapsedEventArgs e)
