@@ -224,17 +224,19 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
             var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
 
-            if (!localCancellationTokenSource.IsCancellationRequested)
-            {
-                var handler = elapsed;
-                handler?.Invoke(this, elapsedEventArgs);
-            }
-
             if (!autoReset)
             {
                 running = false;
                 stopWatch.Reset();
+                var handler = elapsed;
+                handler?.Invoke(this, elapsedEventArgs);
                 break;
+            }
+
+            if (!localCancellationTokenSource.IsCancellationRequested)
+            {
+                var handler = elapsed;
+                handler?.Invoke(this, elapsedEventArgs);
             }
         }
     }

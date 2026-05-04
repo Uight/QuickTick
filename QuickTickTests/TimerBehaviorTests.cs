@@ -279,6 +279,33 @@ public class TimerBehaviorTests
     }
     
     [TestCaseSource(nameof(AllTimerKinds))]
+    public void AutoResetFalse_StartFromHandler_RestartsTimer(string kind)
+    {
+        using var timer = CreateTimer(kind);
+        var fireCount = 0;
+        var secondFired = new ManualResetEventSlim(false);
+
+        timer.AutoReset = false;
+        timer.Elapsed += (_, _) =>
+        {
+            fireCount++;
+            if (fireCount == 1)
+            {
+                // ReSharper disable once AccessToDisposedClosure
+                timer.Start();
+            }
+            else
+            {
+                secondFired.Set();
+            }
+        };
+
+        timer.Start();
+        Assert.That(secondFired.Wait(TimeSpan.FromMilliseconds(500)), Is.True, $"{kind}: Start() from AutoReset=false handler should restart the timer");
+        timer.Stop();
+    }
+
+    [TestCaseSource(nameof(AllTimerKinds))]
     public void ElapsedArgs_TimeSinceLastInterval_IsValid(string kind)
     {
         using var timer = CreateTimer(kind);
