@@ -181,17 +181,68 @@ public class TimerBehaviorTests
     public void SkipMissedIntervals_ReportsSkippedCount(string kind)
     {
         using var timer = CreateTimer(kind);
-        var skippedCounts = new ConcurrentBag<long>();
+        var history = new ConcurrentQueue<long>();
         timer.Elapsed += (_, args) =>
         {
-            skippedCounts.Add(args.SkippedIntervals);
-            Thread.Sleep(50); // Deliberately blocking event code so the timer has to skip ticks
+            history.Enqueue(args.SkippedIntervals);
+            Thread.Sleep(50);
         };
         timer.SkipMissedIntervals = true;
         timer.Start();
-        Thread.Sleep(250);
+        Thread.Sleep(400);
         timer.Stop();
-        Assert.That(skippedCounts, Has.Some.GreaterThan(0L));
+
+        var values = history.ToArray();
+        
+        Assert.That(values, Has.Some.GreaterThan(0L), "skipped count should grow above zero");
+        for (var i = 1; i < values.Length; i++)
+        {
+            Assert.That(values[i], Is.GreaterThanOrEqualTo(values[i - 1]), $"SkippedIntervals decreased at tick {i - 1}→{i} ({values[i - 1]}→{values[i]})");
+        }
+    }
+
+    [TestCaseSource(nameof(AllTimerKinds))]
+    public void SkipMissedIntervals_ResetsToZeroOnRestart(string kind)
+    {
+        using var timer = CreateTimer(kind);
+        var skips = new ConcurrentQueue<long>();
+        var inFirstRun = new[] { true }; 
+        var secondRunFired = new ManualResetEventSlim(false);
+
+        timer.Elapsed += (_, args) =>
+        {
+            skips.Enqueue(args.SkippedIntervals);
+            if (inFirstRun[0])
+            {
+                Thread.Sleep(30); // Accumulate skips during the first run
+            }
+            else
+            {
+                secondRunFired.Set();
+            }
+        };
+        timer.SkipMissedIntervals = true;
+
+        timer.Start();
+        Thread.Sleep(200);
+        timer.Stop();
+        
+        Assert.That(skips, Has.Some.GreaterThan(0L), "skipped count should grow above zero");
+        
+        while (skips.Any())
+        {
+            skips.TryDequeue(out _);
+        }
+        
+        inFirstRun[0] = false;
+        
+        timer.Start();
+        Thread.Sleep(200);
+        timer.Stop();
+
+        Assert.That(skips, Has.Count.GreaterThan(0L));
+        skips.TryDequeue(out var firstSkipAfterRestart);
+        Assert.That(firstSkipAfterRestart, Is.EqualTo(0L), $"{kind}: SkippedIntervals should reset to 0 after Stop()+Start()");
     }
 
     [TestCaseSource(nameof(AllTimerKinds))]
