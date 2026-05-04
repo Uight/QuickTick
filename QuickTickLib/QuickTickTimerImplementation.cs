@@ -153,8 +153,6 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 
     private void CompletionThreadLoop(CancellationTokenSource localCancellationTokenSource, IntPtr runKey)
     {
-        Console.WriteLine($"{nameof(CompletionThreadLoop)} started with {runKey}");
-        
         var stopWatch = Stopwatch.StartNew();
         var nextFireTicks = Interlocked.Read(ref intervalTicks);
         var lastFireTicks = 0L;
