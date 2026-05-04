@@ -117,7 +117,7 @@ public class TimerBehaviorTests
 
         Assert.That(count, Is.InRange(14, 37)); // One timer should run only, still expect ~32 fires
 
-        Assert.That(threadsAfterMultipleStarts - threadsBefore, Is.LessThanOrEqualTo(2), $"{kind}: multiple Start() calls spawned more than 1 new thread");
+        Assert.That(threadsAfterMultipleStarts - threadsBefore, Is.LessThanOrEqualTo(1), $"{kind}: multiple Start() calls spawned more than 1 new thread");
     }
 
     [TestCaseSource(nameof(AllTimerKinds))]
@@ -157,6 +157,10 @@ public class TimerBehaviorTests
     [TestCaseSource(nameof(AllTimerKinds))]
     public void Dispose_StopsTimer(string kind)
     {
+        var proc = Process.GetCurrentProcess();
+        proc.Refresh();
+        var threadsBeforeTimerCreation = proc.Threads.Count;
+        
         var timer = CreateTimer(kind);
         var count = 0;
         var firstFired = new ManualResetEventSlim(false);
@@ -167,6 +171,10 @@ public class TimerBehaviorTests
         var countAtDispose = count;
         Thread.Sleep(150);
         Assert.That(count, Is.EqualTo(countAtDispose));
+        
+        proc.Refresh();
+        var threadsAfterDispose = proc.Threads.Count;
+        Assert.That(threadsAfterDispose - threadsBeforeTimerCreation, Is.Zero, $"{kind}: Creating and disposing a timer left a ghost thread");
     }
     
     [TestCaseSource(nameof(AllTimerKinds))]
