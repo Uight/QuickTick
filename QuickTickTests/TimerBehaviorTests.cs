@@ -320,6 +320,50 @@ public class TimerBehaviorTests
     }
 
     [TestCaseSource(nameof(AllTimerKinds))]
+    public void SkipMissedIntervals_Enabled_NoBurstAfterDelay(string kind)
+    {
+        using var timer = CreateTimer(kind);
+        var timings = new ConcurrentQueue<double>();
+        var firstCall = true;
+
+        timer.Elapsed += (_, args) =>
+        {
+            timings.Enqueue(args.TimeSinceLastInterval.TotalMilliseconds);
+            if (firstCall)
+            {
+                firstCall = false;
+                Thread.Sleep(100); // Block first call so intervals pile up
+            }
+        };
+        timer.SkipMissedIntervals = true;
+        timer.Start();
+        Thread.Sleep(400);
+        timer.Stop();
+
+        var values = timings.ToArray();
+        Assert.That(values, Has.Length.GreaterThan(5));
+        Assert.That(values[0], Is.InRange(10.0, 35.0));    // normal first tick
+        Assert.That(values[1], Is.InRange(70.0, 140.0));   // fires after ~100ms block
+
+        // After at most one short catch-up tick (values[2]), pacing should normalize — no burst
+        var tail = values.Skip(3).ToArray();
+        Assert.That(tail, Is.All.GreaterThanOrEqualTo(10.0), $"{kind}: pacing should resume normally after skip, no sustained burst");
+    }
+
+    [TestCaseSource(nameof(AllTimerKinds))]
+    public void AutoResetFalse_SkipMissedIntervals_DoesNotPreventFire(string kind)
+    {
+        using var timer = CreateTimer(kind);
+        var count = 0;
+        timer.AutoReset = false;
+        timer.SkipMissedIntervals = true;
+        timer.Elapsed += (_, _) => count++;
+        timer.Start();
+        Thread.Sleep(500);
+        Assert.That(count, Is.EqualTo(1), $"{kind}: AutoReset=false with SkipMissedIntervals=true should still fire exactly once");
+    }
+
+    [TestCaseSource(nameof(AllTimerKinds))]
     public void ElapsedArgs_TimeSinceLastInterval_IsValid(string kind)
     {
         using var timer = CreateTimer(kind);
