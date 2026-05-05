@@ -241,7 +241,8 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
 
             if (!autoReset)
             {
-                running = false;
+                running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
+                localCancellationTokenSource.Cancel();
                 handler?.Invoke(this, elapsedEventArgs);
                 break;
             }
@@ -253,5 +254,6 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     public void Dispose()
     {
         Stop();
+        elapsed = null;
     }
 }

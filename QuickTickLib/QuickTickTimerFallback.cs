@@ -159,7 +159,8 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
             if (!AutoReset)
             {
-                running = false;
+                running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
+                localCancellationTokenSource.Cancel();
                 handler?.Invoke(this, elapsedEventArgs);
                 break;
             }
@@ -170,9 +171,8 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
     public void Dispose()
     {
+        Stop();
         timer.Dispose();
-        running = false;
-        cancellationTokenSource?.Cancel();
-        eventQueue?.CompleteAdding();
+        elapsed = null;
     }
 }

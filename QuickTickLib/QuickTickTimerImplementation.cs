@@ -9,6 +9,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 {
     private readonly QuickTickHandleResources handles;
     private static readonly IntPtr CancelCompletionKey = IntPtr.Zero;
+    private readonly long ticksPerMillisecond = Stopwatch.Frequency / 1000;
 
     private volatile bool autoReset;
     private volatile bool skipMissedIntervals;
@@ -42,7 +43,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
             }
 
             intervalMs = (float)value;
-            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * TimeSpan.TicksPerMillisecond));
+            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * ticksPerMillisecond));
         }
     }
 
@@ -134,24 +135,6 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
         }
     }
 
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref disposedState, 1) == 1)
-        {
-            return;
-        }
-
-        try
-        {
-            Stop();
-        }
-        finally
-        {
-            elapsed = null;
-            handles.Dispose();
-        }
-    }
-
     private void CompletionThreadLoop(CancellationTokenSource localCancellationTokenSource, IntPtr runKey)
     {
         var stopWatch = Stopwatch.StartNew();
@@ -215,7 +198,8 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 
             if (!autoReset)
             {
-                running = false;
+                running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
+                localCancellationTokenSource.Cancel();
                 handler?.Invoke(this, elapsedEventArgs);
                 break;
             }
@@ -239,6 +223,24 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
         if (status != 0)
         {
             throw new InvalidOperationException($"NtAssociateWaitCompletionPacket failed: {status:X8}");
+        }
+    }
+    
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref disposedState, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            Stop();
+        }
+        finally
+        {
+            handles.Dispose();
+            elapsed = null;
         }
     }
 }
