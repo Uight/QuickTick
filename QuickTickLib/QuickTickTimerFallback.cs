@@ -113,7 +113,8 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
     private void OnElapsedInternal(object? sender, ElapsedEventArgs e)
     {
-        eventQueue?.Add(true);
+        // Use tryAdd because the timer could still fire after Stop() which would cause exception because Stop() also call CompleteAdding() on the queue
+        eventQueue?.TryAdd(true);
     }
 
     private void Run(CancellationTokenSource localCancellationTokenSource, BlockingCollection<bool> localEventQueue)
