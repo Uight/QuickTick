@@ -239,6 +239,45 @@ public class TimerBehaviorTests
     }
 
     [TestCaseSource(nameof(AllTimerKinds))]
+    public void SkipMissedIntervals_StopWhileLongHandlerRunning_SkippedCountResetsOnRestart(string kind)
+    {
+        using var timer = CreateTimer(kind);
+        var skips = new ConcurrentQueue<long>();
+        var handlerStarted = new ManualResetEventSlim(false);
+        var firstCall = true;
+
+        timer.AutoReset = true;
+        timer.SkipMissedIntervals = true;
+        timer.Elapsed += (_, args) =>
+        {
+            skips.Enqueue(args.SkippedIntervals);
+            if (firstCall)
+            {
+                firstCall = false;
+                handlerStarted.Set();
+                Thread.Sleep(150); // Stay blocked so intervals pile up AND Stop() is called while we're here
+            }
+        };
+
+        timer.Start();
+        Assert.That(handlerStarted.Wait(TimeSpan.FromMilliseconds(500)), Is.True);
+
+        Thread.Sleep(50); // Let more intervals pile up while handler is blocked (~3 extra at 15ms interval)
+        timer.Stop(); // Stop() is called while the handler is still sleeping; it blocks here until handler returns
+
+        while (skips.Any()) skips.TryDequeue(out _);
+
+        // Restart — accumulated/piled-up events must not carry the skipped count into the new run
+        timer.Start();
+        Thread.Sleep(200);
+        timer.Stop();
+
+        Assert.That(skips, Has.Count.GreaterThan(0), $"{kind}: expected ticks after restart");
+        skips.TryDequeue(out var firstSkipAfterRestart);
+        Assert.That(firstSkipAfterRestart, Is.EqualTo(0L), $"{kind}: SkippedIntervals must reset to 0 after Stop()+Start(), even when stopped mid-handler with events piled up");
+    }
+
+    [TestCaseSource(nameof(AllTimerKinds))]
     public void SkipMissedIntervalsDisabled_CatchesUpMissedTicks(string kind)
     {
         using var timer = CreateTimer(kind);
