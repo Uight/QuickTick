@@ -32,7 +32,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
             }
 
             intervalMs = (float)value;
-            intervalTicks = (long)(intervalMs * ticksPerMillisecond);
+            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * ticksPerMillisecond));
         }
     }
 
@@ -167,7 +167,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     private void RunTimer(CancellationTokenSource localCancellationTokenSource)
     {
         var stopWatch = Stopwatch.StartNew();
-        var nextTriggerTicks = intervalTicks;
+        var nextTriggerTicks = Interlocked.Read(ref intervalTicks);
         var skippedIntervals = 0L;
         var lastFireTicks = 0L;
 
@@ -211,13 +211,14 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
 
             if (autoReset)
             {
-                nextTriggerTicks += intervalTicks;
+                var interval = Interlocked.Read(ref intervalTicks);
+                nextTriggerTicks += interval;
 
                 if (skipMissedIntervals)
                 {
                     while (nextTriggerTicks < currentTicks)
                     {
-                        nextTriggerTicks += intervalTicks;
+                        nextTriggerTicks += interval;
                         if (skippedIntervals < long.MaxValue)
                         {
                             skippedIntervals++;

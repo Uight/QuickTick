@@ -13,6 +13,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
     private volatile bool running;
     private volatile bool skipMissedIntervals;
     private ThreadPriority threadPriority = ThreadPriority.Normal;
+    private CancellationTokenSource? cancellationTokenSource;
     private Thread? workerThread;
     private QuickTickElapsedEventHandler? elapsed;
     private readonly object stateLock = new();
@@ -71,14 +72,17 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
             }
 
             running = true;
-            eventQueue = [];
+            var cts = new CancellationTokenSource();
+            var queue = new BlockingCollection<bool>();
 
-            workerThread = new Thread(() => Run(eventQueue))
+            workerThread = new Thread(() => Run(cts, queue))
             {
                 IsBackground = true,
                 Priority = Priority
             };
 
+            cancellationTokenSource = cts;
+            eventQueue = queue;
             workerThread.Start();
             timer.Start();
         }
@@ -94,6 +98,8 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
             }
 
             running = false;
+            cancellationTokenSource?.Cancel();
+            cancellationTokenSource = null;
             timer.Stop();
             eventQueue?.CompleteAdding();
 
@@ -110,22 +116,22 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
         eventQueue?.Add(true);
     }
 
-    private void Run(BlockingCollection<bool> localEventQueue)
+    private void Run(CancellationTokenSource localCancellationTokenSource, BlockingCollection<bool> localEventQueue)
     {
         var stopWatch = Stopwatch.StartNew();
         var lastFireTicks = 0L;
         var skippedIntervals = 0L;
 
-        while (running)
+        while (!localCancellationTokenSource.IsCancellationRequested)
         {
             if (!localEventQueue.TryTake(out _, Timeout.Infinite))
             {
                 break; // CompleteAdding was called
             }
 
-            if (!running)
+            if (localCancellationTokenSource.IsCancellationRequested)
             {
-                break; // Stop() set running=false before CompleteAdding; item was already in queue
+                break;
             }
 
             // If skipping is enabled, drain queue and only keep the latest
@@ -166,6 +172,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
     {
         timer.Dispose();
         running = false;
+        cancellationTokenSource?.Cancel();
         eventQueue?.CompleteAdding();
     }
 }
