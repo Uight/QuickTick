@@ -134,23 +134,26 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
                 break;
             }
 
-            // If skipping is enabled, drain queue and only keep the latest
-            if (skipMissedIntervals && localEventQueue.Count > 0)
-            {
-                while (localEventQueue.TryTake(out _))
-                {
-                    skippedIntervals++;
-                }
-            }
-
             var currentTicks = stopWatch.ElapsedTicks;
             var lastFireTicksLocal = lastFireTicks;
             lastFireTicks = currentTicks;
 
-            if (stopWatch.Elapsed.TotalHours >= 1)
+            if (AutoReset)
             {
-                stopWatch.Restart();
-                lastFireTicks = 0;
+                // If skipping is enabled, drain queue and only keep the latest
+                if (skipMissedIntervals && localEventQueue.Count > 0)
+                {
+                    while (localEventQueue.TryTake(out _))
+                    {
+                        skippedIntervals++;
+                    }
+                }
+
+                if (stopWatch.Elapsed.TotalHours >= 1)
+                {
+                    stopWatch.Restart();
+                    lastFireTicks = 0;
+                }
             }
 
             var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
