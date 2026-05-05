@@ -172,9 +172,9 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
         var lastFireTicks = 0L;
 
         while (!localCancellationTokenSource.IsCancellationRequested)
-        {      
+        {
             while (true)
-            {                
+            {
                 var diffTicks = nextTriggerTicks - stopWatch.ElapsedTicks;
                 if (diffTicks <= 0)
                 {
@@ -196,53 +196,56 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
 
                 if (localCancellationTokenSource.IsCancellationRequested)
                 {
-                    stopWatch.Reset();
-                    return;
-                }                 
+                    break;
+                }
             }
 
-            nextTriggerTicks += intervalTicks;
+            if (localCancellationTokenSource.IsCancellationRequested)
+            {
+                break;
+            }
+
             var currentTicks = stopWatch.ElapsedTicks;
             var lastFireTicksLocal = lastFireTicks;
             lastFireTicks = currentTicks;
 
-            if (skipMissedIntervals)
+            if (autoReset)
             {
-                while (nextTriggerTicks < currentTicks)
+                nextTriggerTicks += intervalTicks;
+
+                if (skipMissedIntervals)
                 {
-                    nextTriggerTicks += intervalTicks;
-                    if (skippedIntervals < long.MaxValue)
+                    while (nextTriggerTicks < currentTicks)
                     {
-                        skippedIntervals++;
+                        nextTriggerTicks += intervalTicks;
+                        if (skippedIntervals < long.MaxValue)
+                        {
+                            skippedIntervals++;
+                        }
                     }
                 }
-            }
 
-            if (stopWatch.Elapsed.TotalHours >= 1)
-            {
-                var remaining = nextTriggerTicks - currentTicks;
-                stopWatch.Restart();
-                nextTriggerTicks = remaining;
-                lastFireTicks = 0L;
+                if (stopWatch.Elapsed.TotalHours >= 1)
+                {
+                    var remaining = nextTriggerTicks - currentTicks;
+                    stopWatch.Restart();
+                    nextTriggerTicks = remaining;
+                    lastFireTicks = 0L;
+                }
             }
 
             var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
+            var handler = elapsed;
 
             if (!autoReset)
             {
                 running = false;
-                stopWatch.Reset();
-                var handler = elapsed;
                 handler?.Invoke(this, elapsedEventArgs);
                 break;
             }
 
-            if (!localCancellationTokenSource.IsCancellationRequested)
-            {
-                var handler = elapsed;
-                handler?.Invoke(this, elapsedEventArgs);
-            }
+            handler?.Invoke(this, elapsedEventArgs);
         }
     }
 

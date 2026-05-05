@@ -208,16 +208,18 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 
                 SetTimer(stopWatch, nextFireTicks, runKey);
             }
-            else
-            {
-                running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
-                localCancellationTokenSource.Cancel();
-            }
 
             var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
-
             var handler = elapsed;
+
+            if (!autoReset)
+            {
+                running = false;
+                handler?.Invoke(this, elapsedEventArgs);
+                break;
+            }
+
             handler?.Invoke(this, elapsedEventArgs);
         }
     }

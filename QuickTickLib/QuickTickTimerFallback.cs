@@ -118,10 +118,14 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
         while (running)
         {
-            // Wait for at least one callback
             if (!localEventQueue.TryTake(out _, Timeout.Infinite))
             {
                 break; // CompleteAdding was called
+            }
+
+            if (!running)
+            {
+                break; // Stop() set running=false before CompleteAdding; item was already in queue
             }
 
             // If skipping is enabled, drain queue and only keep the latest
@@ -145,20 +149,16 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
             var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
+            var handler = elapsed;
 
             if (!AutoReset)
             {
-                running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
-                var handler = elapsed;
+                running = false;
                 handler?.Invoke(this, elapsedEventArgs);
                 break;
             }
 
-            if (running)
-            {
-                var handler = elapsed;
-                handler?.Invoke(this, elapsedEventArgs);
-            }
+            handler?.Invoke(this, elapsedEventArgs);
         }
     }
 
