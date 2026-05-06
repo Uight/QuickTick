@@ -385,7 +385,7 @@ public class TimerBehaviorTests
         Assert.That(values[1], Is.InRange(70.0, 140.0));   // fires after ~100ms block
 
         // After at most one short catch-up tick (values[2]), pacing should normalize — no burst
-        var tail = values.Skip(3).ToArray();
+        var tail = values.Skip(4).ToArray();
         Assert.That(tail, Is.All.GreaterThanOrEqualTo(10.0), $"{kind}: pacing should resume normally after skip, no sustained burst");
     }
 

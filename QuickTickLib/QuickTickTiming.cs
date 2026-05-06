@@ -8,16 +8,19 @@ public static class QuickTickTiming
     private const long FourHundredMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.4);
     private static readonly IntPtr SuccessCompletionKey = new(1);
 
+    // Settable in tests (InternalsVisibleTo("QuickTickTests")) to exercise the Thread.Sleep/Task.Delay fallback path
+    internal static bool IsQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
+
     // ReSharper disable once MemberCanBePrivate.Global
     public static async Task Delay(int millisecondsDelay, CancellationToken cancellationToken = default)
     {
-        var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
-
-        if (!isQuickTickSupported || millisecondsDelay <= 0)
+        if (!IsQuickTickSupported || millisecondsDelay <= 0)
         {
             await Task.Delay(millisecondsDelay, cancellationToken);
             return;
         }
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         var tcs = new TaskCompletionSource<bool>();
 
@@ -42,9 +45,7 @@ public static class QuickTickTiming
 
     public static void Sleep(int millisecondsTimeout)
     {
-        var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
-
-        if (!isQuickTickSupported || millisecondsTimeout <= 0)
+        if (!IsQuickTickSupported || millisecondsTimeout <= 0)
         {
             Thread.Sleep(millisecondsTimeout);
             return;
@@ -56,8 +57,7 @@ public static class QuickTickTiming
 
     internal static void MinimalSleep()
     {
-        var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
-        if (isQuickTickSupported)
+        if (IsQuickTickSupported)
         {       
             QuickTickSleep(FourHundredMicroSecondInTicks);
         }
