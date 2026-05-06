@@ -12,6 +12,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
     private BlockingCollection<bool>? eventQueue;
     private volatile bool running;
     private volatile bool skipMissedIntervals;
+    private int disposedState;
     private ThreadPriority threadPriority = ThreadPriority.Normal;
     private CancellationTokenSource? cancellationTokenSource;
     private Thread? workerThread;
@@ -42,7 +43,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
         set
         {
             threadPriority = value;
-            if (workerThread != null)
+            if (workerThread is { IsAlive: true })
             {
                 workerThread.Priority = value;
             }
@@ -146,7 +147,10 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
                 {
                     while (localEventQueue.TryTake(out _))
                     {
-                        skippedIntervals++;
+                        if (skippedIntervals < long.MaxValue)
+                        {
+                            skippedIntervals++;
+                        }
                     }
                 }
 
@@ -175,8 +179,19 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
     public void Dispose()
     {
-        Stop();
-        timer.Dispose();
-        elapsed = null;
+        if (Interlocked.Exchange(ref disposedState, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            Stop();
+        }
+        finally
+        {
+            timer.Dispose();
+            elapsed = null;
+        }
     }
 }
