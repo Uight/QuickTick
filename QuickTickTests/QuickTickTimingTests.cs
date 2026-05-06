@@ -57,9 +57,10 @@ public class QuickTickTimingTests
     {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
+        var token = cts.Token;
 
         var sw = Stopwatch.StartNew();
-        Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(5000, cts.Token));
+        Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(5000, token));
         sw.Stop();
         Assert.That(sw.Elapsed.TotalMilliseconds, Is.LessThan(200.0), "Should cancel immediately, not run the full 5 s delay");
     }
@@ -69,9 +70,10 @@ public class QuickTickTimingTests
     {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
+        var token = cts.Token;
 
         var sw = Stopwatch.StartNew();
-        Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(0, cts.Token));
+        Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(0, token));
         sw.Stop();
         Assert.That(sw.Elapsed.TotalMilliseconds, Is.LessThan(200.0));
     }
@@ -81,9 +83,10 @@ public class QuickTickTimingTests
     {
         using var cts = new CancellationTokenSource();
         cts.CancelAfter(50);
+        var token = cts.Token;
 
         var sw = Stopwatch.StartNew();
-        Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(5000, cts.Token));
+        Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(5000, token));
         sw.Stop();
         Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 200.0), "Should cancel after ~50 ms, not run the full 5 s delay");
     }
@@ -94,13 +97,11 @@ public class QuickTickTimingTests
 [NonParallelizable]
 public class QuickTickTimingFallbackPathTests
 {
-    private static readonly bool OriginalValue = QuickTickTiming.IsQuickTickSupported;
-
     [SetUp]
     public void SetUp() => QuickTickTiming.IsQuickTickSupported = false;
 
     [TearDown]
-    public void TearDown() => QuickTickTiming.IsQuickTickSupported = OriginalValue;
+    public void TearDown() => QuickTickTiming.IsQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
 
     [Test]
     public void Sleep_PositiveDuration_FallsBackToThreadSleep()
@@ -134,9 +135,10 @@ public class QuickTickTimingFallbackPathTests
     {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
+        var token = cts.Token;
 
         var sw = Stopwatch.StartNew();
-        Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(5000, cts.Token));
+        Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(5000, token));
         sw.Stop();
         Assert.That(sw.Elapsed.TotalMilliseconds, Is.LessThan(200.0));
     }
@@ -146,9 +148,10 @@ public class QuickTickTimingFallbackPathTests
     {
         using var cts = new CancellationTokenSource();
         cts.CancelAfter(50);
+        var token = cts.Token;
 
         var sw = Stopwatch.StartNew();
-        Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(5000, cts.Token));
+        Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(5000, token));
         sw.Stop();
         Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 200.0));
     }
