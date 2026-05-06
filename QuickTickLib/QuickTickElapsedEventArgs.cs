@@ -1,9 +1,9 @@
-﻿namespace QuickTickLib;
+namespace QuickTickLib;
 
-public class QuickTickElapsedEventArgs
+public sealed class QuickTickElapsedEventArgs
 {
     public TimeSpan TimeSinceLastInterval { get; }
-    public long SkippedIntervals { get; }  
+    public long SkippedIntervals { get; }
 
     public QuickTickElapsedEventArgs(TimeSpan timeSinceLastInterval, long skippedIntervals)
     {

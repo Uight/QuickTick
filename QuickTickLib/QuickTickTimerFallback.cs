@@ -1,4 +1,4 @@
-﻿// Some parts of the code are inspired by György Kőszeg's HighRes Timer: https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs
+// Some parts of the code are inspired by György Kőszeg's HighRes Timer: https://github.com/koszeggy/KGySoft.CoreLibraries/blob/master/KGySoft.CoreLibraries/CoreLibraries/HiResTimer.cs
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -6,26 +6,23 @@ using System.Timers;
 
 namespace QuickTickLib;
 
-internal class QuickTickTimerFallback : IQuickTickTimer
+internal sealed class QuickTickTimerFallback : IQuickTickTimer
 {
     private readonly System.Timers.Timer timer;
     private BlockingCollection<bool>? eventQueue;
     private volatile bool running;
     private volatile bool skipMissedIntervals;
+    private int disposedState;
     private ThreadPriority threadPriority = ThreadPriority.Normal;
+    private CancellationTokenSource? cancellationTokenSource;
     private Thread? workerThread;
-    private long skippedIntervals;
     private QuickTickElapsedEventHandler? elapsed;
-    private readonly Stopwatch stopWatch = new();
-    private long lastFireTicks;
+    private readonly object stateLock = new();
 
     public double Interval
     {
         get => timer.Interval;
-        set
-        {
-            timer.Interval = value;
-        }
+        set => timer.Interval = value;
     }
 
     public bool AutoReset
@@ -34,13 +31,10 @@ internal class QuickTickTimerFallback : IQuickTickTimer
         set => timer.AutoReset = value;
     }
 
-    public bool SkipMissedIntervals 
+    public bool SkipMissedIntervals
     {
         get => skipMissedIntervals;
-        set
-        {
-            skipMissedIntervals = value;
-        }
+        set => skipMissedIntervals = value;
     }
 
     public ThreadPriority Priority
@@ -49,10 +43,10 @@ internal class QuickTickTimerFallback : IQuickTickTimer
         set
         {
             threadPriority = value;
-            if (workerThread != null)
+            if (workerThread is { IsAlive: true })
             {
                 workerThread.Priority = value;
-            }         
+            }
         }
     }
 
@@ -71,96 +65,133 @@ internal class QuickTickTimerFallback : IQuickTickTimer
 
     public void Start()
     {
-        if (running)
+        lock (stateLock)
         {
-            return;
+            if (running)
+            {
+                return;
+            }
+
+            running = true;
+            var cts = new CancellationTokenSource();
+            var queue = new BlockingCollection<bool>();
+
+            workerThread = new Thread(() => Run(cts, queue))
+            {
+                IsBackground = true,
+                Priority = Priority
+            };
+
+            cancellationTokenSource = cts;
+            eventQueue = queue;
+            workerThread.Start();
+            timer.Start();
         }
-        stopWatch.Restart();
-
-        running = true;
-        eventQueue = [];
-        skippedIntervals = 0;
-        lastFireTicks = 0;
-
-        workerThread = new Thread(() => Run(eventQueue))
-        {
-            IsBackground = true,
-            Priority = Priority
-        };
-
-        workerThread.Start();
-        timer.Start();
     }
 
     public void Stop()
     {
-        if (!running)
+        lock (stateLock)
         {
-            return;
-        }
+            if (!running)
+            {
+                return;
+            }
 
-        timer.Stop();
-        running = false;
-        eventQueue?.CompleteAdding();
-        stopWatch.Reset();
+            running = false;
+            cancellationTokenSource?.Cancel();
+            cancellationTokenSource = null;
+            timer.Stop();
+            eventQueue?.CompleteAdding();
+
+            if (Thread.CurrentThread != workerThread)
+            {
+                workerThread?.Join();
+            }
+            workerThread = null;
+        }
     }
 
     private void OnElapsedInternal(object? sender, ElapsedEventArgs e)
     {
-        eventQueue?.Add(true);
+        // Use tryAdd because the timer could still fire after Stop() which would cause exception because Stop() also call CompleteAdding() on the queue
+        eventQueue?.TryAdd(true);
     }
 
-    private void Run(BlockingCollection<bool> localEventQueue)
+    private void Run(CancellationTokenSource localCancellationTokenSource, BlockingCollection<bool> localEventQueue)
     {
-        while (running)
+        var stopWatch = Stopwatch.StartNew();
+        var lastFireTicks = 0L;
+        var skippedIntervals = 0L;
+
+        while (!localCancellationTokenSource.IsCancellationRequested)
         {
-            // Wait for at least one callback
             if (!localEventQueue.TryTake(out _, Timeout.Infinite))
             {
-                break; // In this case the CompleteAdding was called
+                break; // CompleteAdding was called
             }
 
-            // If skipping is enabled, drain queue and only keep the latest
-            if (skipMissedIntervals && localEventQueue.Count > 0)
+            if (localCancellationTokenSource.IsCancellationRequested)
             {
-                while (localEventQueue.TryTake(out _))
-                {
-                    skippedIntervals++;
-                }
+                break;
             }
 
             var currentTicks = stopWatch.ElapsedTicks;
             var lastFireTicksLocal = lastFireTicks;
             lastFireTicks = currentTicks;
 
-            if (stopWatch.Elapsed.TotalHours >= 1)
+            if (AutoReset)
             {
-                stopWatch.Restart();
-                lastFireTicks = 0;
+                // If skipping is enabled, drain queue and only keep the latest
+                if (skipMissedIntervals && localEventQueue.Count > 0)
+                {
+                    while (localEventQueue.TryTake(out _))
+                    {
+                        if (skippedIntervals < long.MaxValue)
+                        {
+                            skippedIntervals++;
+                        }
+                    }
+                }
+
+                if (stopWatch.Elapsed.TotalHours >= 1)
+                {
+                    stopWatch.Restart();
+                    lastFireTicks = 0;
+                }
             }
 
             var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
-
-            if (running)
-            {
-                var handler = elapsed;
-                handler?.Invoke(this, elapsedEventArgs);
-            }
+            var handler = elapsed;
 
             if (!AutoReset)
             {
-                running = false;
-                stopWatch.Reset();
+                running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
+                localCancellationTokenSource.Cancel();
+                handler?.Invoke(this, elapsedEventArgs);
                 break;
             }
+
+            handler?.Invoke(this, elapsedEventArgs);
         }
     }
 
     public void Dispose()
     {
-        timer.Dispose();
-        running = false;
-        eventQueue?.CompleteAdding();
+        if (Interlocked.Exchange(ref disposedState, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            Stop();
+        }
+        finally
+        {
+            timer.Dispose();
+            elapsed = null;
+        }
     }
 }

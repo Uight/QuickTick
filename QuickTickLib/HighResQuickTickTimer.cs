@@ -12,12 +12,13 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     private volatile bool running;
     private volatile bool skipMissedIntervals;
     private volatile float intervalMs;
-    private volatile float sleepThreshold = 1.5f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensivly testing with the TimingReportGenerator
-    private volatile float yieldThreshold = 0.75f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensivly testing with the TimingReportGenerator
+    private volatile float sleepThreshold = 1.5f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
+    private volatile float yieldThreshold = 0.75f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
     private long intervalTicks;
     private ThreadPriority threadPriority = ThreadPriority.Highest;
     private CancellationTokenSource? cancellationTokenSource;
     private Thread? workerThread;
+    private readonly object stateLock = new();
     private QuickTickElapsedEventHandler? elapsed;
 
     public double Interval
@@ -31,7 +32,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
             }
 
             intervalMs = (float)value;
-            intervalTicks = (long)(intervalMs * ticksPerMillisecond);
+            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * ticksPerMillisecond));
         }
     }
 
@@ -44,10 +45,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     public bool SkipMissedIntervals
     {
         get => skipMissedIntervals;
-        set
-        {
-            skipMissedIntervals = value;
-        }
+        set => skipMissedIntervals = value;
     }
 
     public ThreadPriority Priority
@@ -56,7 +54,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
         set
         {
             threadPriority = value;
-            if (workerThread != null)
+            if (workerThread is { IsAlive: true })
             {
                 workerThread.Priority = value;
             }
@@ -100,7 +98,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     /// Increasing this time can lead to better timing but increases CPU usage as the code will SpinWait instead.
     /// Must be at least 0.0 and at most the value of SleepThreshold. 
     /// Setting YieldThreshold equal to SleepThreshold disables yielding (goes directly to spin wait).
-    /// Setting YieldThreshold equal to 0.0 will basically disable spin waiting altough if no process is ready to run on this thread the behavior is almost the same.
+    /// Setting YieldThreshold equal to 0.0 will basically disable spin waiting although if no process is ready to run on this thread the behavior is almost the same.
     /// </summary>
     public double YieldThreshold
     {
@@ -124,47 +122,59 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
 
     public void Start()
     {
-        if (running)
+        lock (stateLock)
         {
-            return;
+            if (running)
+            {
+                return;
+            }
+
+            running = true;
+            var cts = new CancellationTokenSource();
+
+            workerThread = new Thread(() => RunTimer(cts))
+            {
+                IsBackground = true,
+                Priority = Priority
+            };
+
+            cancellationTokenSource = cts;
+            workerThread.Start();
         }
-
-        running = true;
-        var cts = new CancellationTokenSource();
-
-        workerThread = new Thread(() => RunTimer(cts))
-        {
-            IsBackground = true,
-            Priority = Priority
-        };
-
-        cancellationTokenSource = cts;
-        workerThread.Start();
     }
 
     public void Stop()
     {
-        if (!running)
+        lock (stateLock)
         {
-            return;
-        }
+            if (!running)
+            {
+                return;
+            }
 
-        running = false;
-        cancellationTokenSource?.Cancel();
+            running = false;
+            cancellationTokenSource?.Cancel();
+            cancellationTokenSource = null;
+            
+            if (Thread.CurrentThread != workerThread)
+            {
+                workerThread?.Join();
+            }
+            workerThread = null;
+        }
     }
 
-    private void RunTimer(CancellationTokenSource cancellationTokenSource)
+    private void RunTimer(CancellationTokenSource localCancellationTokenSource)
     {
-        var stopWatch = new Stopwatch();
-        stopWatch.Start();
-        var nextTriggerTicks = intervalTicks;
+        var stopWatch = Stopwatch.StartNew();
+        var nextTriggerTicks = Interlocked.Read(ref intervalTicks);
         var skippedIntervals = 0L;
         var lastFireTicks = 0L;
 
-        while (!cancellationTokenSource.IsCancellationRequested)
-        {      
+        while (!localCancellationTokenSource.IsCancellationRequested)
+        {
             while (true)
-            {                
+            {
                 var diffTicks = nextTriggerTicks - stopWatch.ElapsedTicks;
                 if (diffTicks <= 0)
                 {
@@ -184,58 +194,66 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
                     Thread.SpinWait(10);
                 }
 
-                if (cancellationTokenSource.IsCancellationRequested)
+                if (localCancellationTokenSource.IsCancellationRequested)
                 {
-                    stopWatch.Reset();
-                    return;
-                }                 
+                    break;
+                }
             }
 
-            nextTriggerTicks += intervalTicks;
+            if (localCancellationTokenSource.IsCancellationRequested)
+            {
+                break;
+            }
+
             var currentTicks = stopWatch.ElapsedTicks;
             var lastFireTicksLocal = lastFireTicks;
             lastFireTicks = currentTicks;
 
-            if (skipMissedIntervals)
+            if (autoReset)
             {
-                while (nextTriggerTicks < currentTicks)
+                var interval = Interlocked.Read(ref intervalTicks);
+                nextTriggerTicks += interval;
+
+                if (skipMissedIntervals)
                 {
-                    nextTriggerTicks += intervalTicks;
-                    if (skippedIntervals < long.MaxValue)
+                    while (nextTriggerTicks < currentTicks)
                     {
-                        skippedIntervals++;
+                        nextTriggerTicks += interval;
+                        if (skippedIntervals < long.MaxValue)
+                        {
+                            skippedIntervals++;
+                        }
                     }
                 }
-            }
 
-            if (stopWatch.Elapsed.TotalHours >= 1)
-            {
-                var remaining = nextTriggerTicks - currentTicks;
-                stopWatch.Restart();
-                nextTriggerTicks = remaining;
-                lastFireTicks = 0L;
+                if (stopWatch.Elapsed.TotalHours >= 1)
+                {
+                    var remaining = nextTriggerTicks - currentTicks;
+                    stopWatch.Restart();
+                    nextTriggerTicks = remaining;
+                    lastFireTicks = 0L;
+                }
             }
 
             var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
-
-            if (!cancellationTokenSource.IsCancellationRequested)
-            {
-                var handler = elapsed;
-                handler?.Invoke(this, elapsedEventArgs);
-            }
+            var handler = elapsed;
 
             if (!autoReset)
             {
-                running = false;
-                stopWatch.Reset();
+                running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
+                localCancellationTokenSource.Cancel();
+                handler?.Invoke(this, elapsedEventArgs);
                 break;
             }
+
+            handler?.Invoke(this, elapsedEventArgs);
         }
     }
 
     public void Dispose()
     {
         Stop();
+        elapsed = null;
     }
 }

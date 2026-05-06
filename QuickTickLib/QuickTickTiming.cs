@@ -5,17 +5,22 @@ namespace QuickTickLib;
 public static class QuickTickTiming
 {
     // Testing showed that waiting 0.5ms results in around 1ms average waiting while going to 0.4ms results in an average of 0.5ms wait time
-    const long fourHundredMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.4);
+    private const long FourHundredMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.4);
+    private static readonly IntPtr SuccessCompletionKey = new(1);
 
+    // Settable in tests (InternalsVisibleTo("QuickTickTests")) to exercise the Thread.Sleep/Task.Delay fallback path
+    internal static bool IsQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
+
+    // ReSharper disable once MemberCanBePrivate.Global
     public static async Task Delay(int millisecondsDelay, CancellationToken cancellationToken = default)
     {
-        var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
-
-        if (!isQuickTickSupported || millisecondsDelay <= 0)
+        if (!IsQuickTickSupported || millisecondsDelay <= 0)
         {
             await Task.Delay(millisecondsDelay, cancellationToken);
             return;
         }
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         var tcs = new TaskCompletionSource<bool>();
 
@@ -40,9 +45,7 @@ public static class QuickTickTiming
 
     public static void Sleep(int millisecondsTimeout)
     {
-        var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
-
-        if (!isQuickTickSupported || millisecondsTimeout <= 0)
+        if (!IsQuickTickSupported || millisecondsTimeout <= 0)
         {
             Thread.Sleep(millisecondsTimeout);
             return;
@@ -54,10 +57,9 @@ public static class QuickTickTiming
 
     internal static void MinimalSleep()
     {
-        var isQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
-        if (isQuickTickSupported)
+        if (IsQuickTickSupported)
         {       
-            QuickTickSleep(fourHundredMicroSecondInTicks);
+            QuickTickSleep(FourHundredMicroSecondInTicks);
         }
         else
         {
@@ -65,66 +67,35 @@ public static class QuickTickTiming
         }
     }
 
-    internal static void QuickTickSleep(long tickToSleep)
+    internal static void QuickTickSleep(long tickToSleep, QuickTickHandleResources? externalHandles = null)
     {
-        var sleepTimeTicks = -tickToSleep; // negative means relative time
+        QuickTickHandleResources? localHandles = null;
 
-        var iocpHandle = Win32Interop.CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, IntPtr.Zero, 0);
-        if (iocpHandle == IntPtr.Zero)
+        try
         {
-            throw new InvalidOperationException($"CreateIoCompletionPort failed: {Marshal.GetLastWin32Error()}");
-        }
+            var handles = externalHandles ?? (localHandles = new QuickTickHandleResources());
 
-        var ntCreateWaitCompletionPacketStatus = Win32Interop.NtCreateWaitCompletionPacket(out var waitIocpHandle, QuickTickHelper.NtCreateWaitCompletionPacketAccessRights, IntPtr.Zero);
-        if (ntCreateWaitCompletionPacketStatus != 0)
-        {
-            throw new InvalidOperationException($"NtCreateWaitCompletionPacket failed: {ntCreateWaitCompletionPacketStatus:X8}");
-        }
+            var sleepTimeTicks = -tickToSleep; // Negative means relative time
 
-        var timerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, Win32Interop.CreateWaitableTimerFlag_HIGH_RESOLUTION, QuickTickHelper.CreateWaitableTimerExWAccessRights);
-        if (timerHandle == IntPtr.Zero)
-        {
-            throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");
-        }
-
-        var successCompletionKey = new IntPtr(1);
-
-        if (!Win32Interop.SetWaitableTimer(timerHandle, ref sleepTimeTicks, 0, IntPtr.Zero, IntPtr.Zero, false))
-        {
-            throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
-        }
-
-        int ntAssociateWaitCompletionPacketStatus = Win32Interop.NtAssociateWaitCompletionPacket(waitIocpHandle, iocpHandle, timerHandle, successCompletionKey, IntPtr.Zero, 0, IntPtr.Zero, out _);
-
-        if (ntAssociateWaitCompletionPacketStatus != 0)
-        {
-            throw new InvalidOperationException($"NtAssociateWaitCompletionPacket failed: {ntAssociateWaitCompletionPacketStatus:X8}");
-        }
-
-        while (true) // Loop is not strictly neccessary as there should always only be one completion packet.
-        {
-            if (Win32Interop.GetQueuedCompletionStatus(iocpHandle, out _, out var lpCompletionKey, out _, uint.MaxValue))
+            if (!Win32Interop.SetWaitableTimer(handles.TimerHandle, ref sleepTimeTicks, 0, IntPtr.Zero, IntPtr.Zero, false))
             {
-                if (lpCompletionKey == successCompletionKey)
-                {
-                    break;
-                }
+                throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
             }
-        }
 
-        if (waitIocpHandle != IntPtr.Zero)
-        {
-            Win32Interop.CloseHandle(waitIocpHandle);
-        }
+            int ntAssociateWaitCompletionPacketStatus = Win32Interop.NtAssociateWaitCompletionPacket(handles.WaitIocpHandle, handles.IocpHandle, handles.TimerHandle, SuccessCompletionKey, IntPtr.Zero, 0, IntPtr.Zero, out _);
 
-        if (iocpHandle != IntPtr.Zero)
-        {
-            Win32Interop.CloseHandle(iocpHandle);
-        }
+            if (ntAssociateWaitCompletionPacketStatus != 0)
+            {
+                throw new InvalidOperationException($"NtAssociateWaitCompletionPacket failed: {ntAssociateWaitCompletionPacketStatus:X8}");
+            }
 
-        if (timerHandle != IntPtr.Zero)
+            // Checking the return value and the completion key is unnecessary since the IOCP is not shared and therefor we expect exactly one completion packet, which is the one we just set up above.
+            // The return value would only be false if the IOCP was disposed in which case we also want to stop waiting because that could only happen when the caller disposes the handles or program is shutting down
+            Win32Interop.GetQueuedCompletionStatus(handles.IocpHandle, out _, out _, out _, uint.MaxValue);
+        }
+        finally
         {
-            Win32Interop.CloseHandle(timerHandle);
+            localHandles?.Dispose();
         }
     }
 }
