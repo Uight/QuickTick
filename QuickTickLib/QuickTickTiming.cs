@@ -5,7 +5,7 @@ namespace QuickTickLib;
 public static class QuickTickTiming
 {
     // Testing showed that waiting 0.5ms results in around 1ms average waiting while going to 0.4ms results in an average of 0.5ms wait time
-    private const long FourHundredMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.4);
+    private static readonly long FourHundredMicroSecondInTicks = (long)(QuickTickHelper.TicksPerMillisecond * 0.4);
     private static readonly IntPtr SuccessCompletionKey = new(1);
 
     // Settable in tests (InternalsVisibleTo("QuickTickTests")) to exercise the Thread.Sleep/Task.Delay fallback path

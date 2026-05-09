@@ -9,7 +9,6 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 {
     private readonly QuickTickHandleResources handles;
     private static readonly IntPtr CancelCompletionKey = IntPtr.Zero;
-    private readonly long ticksPerMillisecond = Stopwatch.Frequency / 1000;
 
     private volatile bool autoReset;
     private volatile bool skipMissedIntervals;
@@ -43,7 +42,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
             }
 
             intervalMs = (float)value;
-            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * ticksPerMillisecond));
+            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * QuickTickHelper.TicksPerMillisecond));
         }
     }
 
