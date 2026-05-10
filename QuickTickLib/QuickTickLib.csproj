@@ -12,9 +12,9 @@
     <PackageTags>Timing Timer Sleep Delay</PackageTags>
     <AnalysisLevel>latest</AnalysisLevel>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
-    <PackageReleaseNotes></PackageReleaseNotes>
+    <PackageReleaseNotes>https://github.com/Uight/QuickTick/releases</PackageReleaseNotes>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.2.0</Version>
+    <Version>2.3.0</Version>
     <PackageReadmeFile>README.md</PackageReadmeFile>
    
     <ImplicitUsings>enable</ImplicitUsings>
