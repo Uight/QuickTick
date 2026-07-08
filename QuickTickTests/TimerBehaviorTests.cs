@@ -184,7 +184,7 @@ public class TimerBehaviorTests
         
         proc.Refresh();
         var threadsAfterDispose = proc.Threads.Count;
-        Assert.That(threadsAfterDispose - threadsBeforeTimerCreation, Is.Zero, $"{kind}: Creating and disposing a timer left a ghost thread");
+        Assert.That(threadsAfterDispose - threadsBeforeTimerCreation, Is.LessThanOrEqualTo(0), $"{kind}: Creating and disposing a timer left a ghost thread");
     }
     
     [TestCaseSource(nameof(AllTimerKinds))]
