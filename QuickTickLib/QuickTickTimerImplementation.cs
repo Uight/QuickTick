@@ -42,7 +42,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
             }
 
             intervalMs = (float)value;
-            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * QuickTickHelper.TicksPerMillisecond));
+            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * QuickTickHelper.StopwatchTicksPerMillisecond));
         }
     }
 
@@ -191,7 +191,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
                 SetTimer(stopWatch, nextFireTicks, runKey);
             }
 
-            var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
+            var timeSinceLastFire = TimeSpan.FromTicks(QuickTickHelper.StopwatchTicksToTimeSpanTicks(currentTicks - lastFireTicksLocal));
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
             var handler = elapsed;
 
@@ -209,8 +209,9 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
     
     private void SetTimer(Stopwatch stopWatch, long nextFireTicks, IntPtr runKey)
     {
-        long dueTime = nextFireTicks - stopWatch.ElapsedTicks;
-        dueTime = dueTime < 0 ? 0 : -dueTime; // Negative = relative time for SetWaitableTimer
+        long dueTimeStopwatchTicks = nextFireTicks - stopWatch.ElapsedTicks;
+        long dueTime = dueTimeStopwatchTicks < 0 ? 0 : QuickTickHelper.StopwatchTicksToTimeSpanTicks(dueTimeStopwatchTicks);
+        dueTime = -dueTime; // Negative = relative time for SetWaitableTimer, which expects 100ns units
 
         if (!Win32Interop.SetWaitableTimer(handles.TimerHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false)) // Setting the period to 0 makes the timer fire exactly once
         {

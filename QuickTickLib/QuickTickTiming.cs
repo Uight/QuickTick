@@ -5,7 +5,8 @@ namespace QuickTickLib;
 public static class QuickTickTiming
 {
     // Testing showed that waiting 0.5ms results in around 1ms average waiting while going to 0.4ms results in an average of 0.5ms wait time
-    private static readonly long FourHundredMicroSecondInTicks = (long)(QuickTickHelper.TicksPerMillisecond * 0.4);
+    // QuickTickSleep expects 100ns (TimeSpan) ticks, same as its other caller Sleep(), so this must be derived from TimeSpan.TicksPerMillisecond
+    private const long FourHundredMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.4);
     private static readonly IntPtr SuccessCompletionKey = new(1);
 
     // Settable in tests (InternalsVisibleTo("QuickTickTests")) to exercise the Thread.Sleep/Task.Delay fallback path
@@ -66,7 +67,11 @@ public static class QuickTickTiming
             Thread.Sleep(1);
         }
     }
-
+    
+    /// <summary>
+    /// The tickToSleep must be specified in <see cref="TimeSpan"/> ticks (100-nanosecond
+    /// intervals), not <see cref="System.Diagnostics.Stopwatch"/> ticks, because WinAPI calls want it that way.
+    /// </summary>
     internal static void QuickTickSleep(long tickToSleep)
     {
         using var handles = new QuickTickHandleResources();
