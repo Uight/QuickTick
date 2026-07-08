@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using NUnit.Framework;
 using QuickTickLib;
 
@@ -7,19 +8,23 @@ namespace QuickTickTests;
 
 // Tests run against all three timer implementations to verify they behave consistently.
 // These tests should verify function not performance
-[Platform(Include = "Win", Reason = "Timer implementations rely on Win32 APIs or Windows timing behavior")]
+[Platform(Exclude = "MacOsX", Reason = "macOS timing is too unpredictable for the timing ranges asserted here")]
 public class TimerBehaviorTests
 {
     // Use default timing of windows (15.625) so tests are mostly predictable even with fallback timer
     // Actually stay just below the default for windows because using it exactly can lead to the fallback timer waiting double very often
-    private const double IntervalMs = 15; 
+    private const double IntervalMs = 15;
 
-    private static IEnumerable<string> AllTimerKinds() =>
-    [
-        "implementation",
-        "fallback",
-        "highResolution",
-    ];
+    private static IEnumerable<string> AllTimerKinds()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            // QuickTickTimerImplementation P/Invokes kernel32/ntdll in its constructor and can only run on Windows
+            yield return "implementation";
+        }
+        yield return "fallback";
+        yield return "highResolution";
+    }
 
     private static IQuickTickTimer CreateTimer(string kind) => kind switch
     {

@@ -1,0 +1,39 @@
+name: Run Tests
+
+on:
+  workflow_dispatch:  # Allow manually triggering the workflow
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: 🧪 Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false  # Always run both OSes so results can be compared
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: 🛒 Checkout
+        uses: actions/checkout@v6
+
+      - name: ✨ Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: 🧪 Test net8.0
+        run: dotnet test QuickTickTests/QuickTickTests.csproj --framework net8.0 --configuration Release --logger "console;verbosity=normal"
+
+      - name: 🧪 Test net10.0
+        if: success() || failure()  # Run even if the net8.0 step failed
+        run: dotnet test QuickTickTests/QuickTickTests.csproj --framework net10.0 --configuration Release --logger "console;verbosity=normal"
+
+      - name: 🧪 Test net48
+        if: runner.os == 'Windows' && (success() || failure())  # net48 only runs on Windows
+        run: dotnet test QuickTickTests/QuickTickTests.csproj --framework net48 --configuration Release --logger "console;verbosity=normal"
