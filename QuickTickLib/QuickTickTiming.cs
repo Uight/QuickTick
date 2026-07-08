@@ -23,7 +23,7 @@ public static class QuickTickTiming
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var tcs = new TaskCompletionSource<bool>();
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using (var timer = new QuickTickTimer(millisecondsDelay))
         {
