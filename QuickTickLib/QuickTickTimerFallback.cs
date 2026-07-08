@@ -16,7 +16,6 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
     private ThreadPriority threadPriority = ThreadPriority.Normal;
     private CancellationTokenSource? cancellationTokenSource;
     private Thread? workerThread;
-    private QuickTickElapsedEventHandler? elapsed;
     private readonly object stateLock = new();
 
     public double Interval
@@ -50,11 +49,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
         }
     }
 
-    public event QuickTickElapsedEventHandler? Elapsed
-    {
-        add => elapsed += value;
-        remove => elapsed -= value;
-    }
+    public event QuickTickElapsedEventHandler? Elapsed;
 
     public QuickTickTimerFallback(double interval)
     {
@@ -79,7 +74,8 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
             workerThread = new Thread(() => Run(cts, queue))
             {
                 IsBackground = true,
-                Priority = Priority
+                Priority = Priority,
+                Name = "QuickTick Timer"
             };
 
             cancellationTokenSource = cts;
@@ -163,7 +159,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
             var timeSinceLastFire = TimeSpan.FromTicks(QuickTickHelper.StopwatchTicksToTimeSpanTicks(currentTicks - lastFireTicksLocal));
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
-            var handler = elapsed;
+            var handler = Elapsed;
 
             if (!AutoReset)
             {
@@ -191,7 +187,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
         finally
         {
             timer.Dispose();
-            elapsed = null;
+            Elapsed = null;
         }
     }
 }

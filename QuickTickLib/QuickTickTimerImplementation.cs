@@ -13,7 +13,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
     private volatile bool autoReset;
     private volatile bool skipMissedIntervals;
     private volatile bool running;
-    private volatile float intervalMs;
+    private double intervalMs;
     private long intervalTicks;
     private int currentRunKey;
 
@@ -23,17 +23,12 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
     private CancellationTokenSource? cancellationTokenSource;
     private Thread? completionThread;
     private ThreadPriority threadPriority = ThreadPriority.Normal;
-    private QuickTickElapsedEventHandler? elapsed;
 
-    public event QuickTickElapsedEventHandler? Elapsed
-    {
-        add => elapsed += value;
-        remove => elapsed -= value;
-    }
+    public event QuickTickElapsedEventHandler? Elapsed;
 
     public double Interval
     {
-        get => intervalMs;
+        get => Volatile.Read(ref intervalMs);
         set
         {
             if (value > int.MaxValue || value < 0.5 || double.IsNaN(value))
@@ -41,8 +36,8 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
                 throw new ArgumentOutOfRangeException(nameof(value), "Interval must be between 0.5 and int.MaxValue");
             }
 
-            intervalMs = (float)value;
-            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * QuickTickHelper.StopwatchTicksPerMillisecond));
+            Volatile.Write(ref intervalMs, value);
+            Interlocked.Exchange(ref intervalTicks, (long)(value * QuickTickHelper.StopwatchTicksPerMillisecond));
         }
     }
 
@@ -96,7 +91,8 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
             completionThread = new Thread(() => CompletionThreadLoop(cts, runKey))
             {
                 IsBackground = true,
-                Priority = Priority
+                Priority = Priority,
+                Name = "QuickTick Timer"
             };
 
             cancellationTokenSource = cts;
@@ -193,7 +189,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 
             var timeSinceLastFire = TimeSpan.FromTicks(QuickTickHelper.StopwatchTicksToTimeSpanTicks(currentTicks - lastFireTicksLocal));
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
-            var handler = elapsed;
+            var handler = Elapsed;
 
             if (!autoReset)
             {
@@ -240,7 +236,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
         finally
         {
             handles.Dispose();
-            elapsed = null;
+            Elapsed = null;
         }
     }
 }
