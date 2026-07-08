@@ -22,7 +22,14 @@ public class TimerBehaviorTests
             // QuickTickTimerImplementation P/Invokes kernel32/ntdll in its constructor and can only run on Windows
             yield return "implementation";
         }
-        yield return "fallback";
+        else
+        {
+            // QuickTickTimerFallback is internal and only ever selected automatically on non-Windows platforms
+            // (QuickTickTimer always picks "implementation" on supported Windows versions). Running it on
+            // Windows CI too would only add ThreadPool-dispatch jitter from a shared runner without exercising
+            // any path real Windows users hit — the Linux job already covers its logic against the real target OS.
+            yield return "fallback";
+        }
         yield return "highResolution";
     }
 
