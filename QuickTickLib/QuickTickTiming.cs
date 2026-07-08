@@ -15,6 +15,8 @@ public static class QuickTickTiming
     // ReSharper disable once MemberCanBePrivate.Global
     public static async Task Delay(int millisecondsDelay, CancellationToken cancellationToken = default)
     {
+        QuickTickHelper.ThrowIfUnsupportedWindowsVersion();
+
         if (!IsQuickTickSupported || millisecondsDelay <= 0)
         {
             await Task.Delay(millisecondsDelay, cancellationToken);
@@ -46,6 +48,8 @@ public static class QuickTickTiming
 
     public static void Sleep(int millisecondsTimeout)
     {
+        QuickTickHelper.ThrowIfUnsupportedWindowsVersion();
+
         if (!IsQuickTickSupported || millisecondsTimeout <= 0)
         {
             Thread.Sleep(millisecondsTimeout);

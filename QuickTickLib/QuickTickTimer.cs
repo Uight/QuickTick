@@ -8,6 +8,7 @@ public sealed class QuickTickTimer : IQuickTickTimer
 
     public QuickTickTimer(double interval)
     {
+        QuickTickHelper.ThrowIfUnsupportedWindowsVersion();
         isQuickTickUsed = QuickTickHelper.PlatformSupportsQuickTick();
         timer = isQuickTickUsed ? new QuickTickTimerImplementation(interval) : new QuickTickTimerFallback(interval);
     }
