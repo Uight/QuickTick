@@ -161,7 +161,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
                 }
             }
 
-            var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
+            var timeSinceLastFire = TimeSpan.FromTicks(QuickTickHelper.StopwatchTicksToTimeSpanTicks(currentTicks - lastFireTicksLocal));
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
             var handler = elapsed;
 

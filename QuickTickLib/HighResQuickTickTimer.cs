@@ -30,7 +30,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
             }
 
             intervalMs = (float)value;
-            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * QuickTickHelper.TicksPerMillisecond));
+            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * QuickTickHelper.StopwatchTicksPerMillisecond));
         }
     }
 
@@ -179,11 +179,11 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
                     break;
                 }
 
-                if (diffTicks >= QuickTickHelper.TicksPerMillisecond * sleepThreshold)
+                if (diffTicks >= QuickTickHelper.StopwatchTicksPerMillisecond * sleepThreshold)
                 {
                     QuickTickTiming.MinimalSleep();
                 }
-                else if (diffTicks >= QuickTickHelper.TicksPerMillisecond * yieldThreshold)
+                else if (diffTicks >= QuickTickHelper.StopwatchTicksPerMillisecond * yieldThreshold)
                 {
                     Thread.Yield();
                 }
@@ -233,7 +233,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
                 }
             }
 
-            var timeSinceLastFire = TimeSpan.FromTicks(currentTicks - lastFireTicksLocal);
+            var timeSinceLastFire = TimeSpan.FromTicks(QuickTickHelper.StopwatchTicksToTimeSpanTicks(currentTicks - lastFireTicksLocal));
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
             var handler = elapsed;
 

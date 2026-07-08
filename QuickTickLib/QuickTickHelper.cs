@@ -5,12 +5,14 @@ namespace QuickTickLib;
 
 internal static class QuickTickHelper
 {
-    internal static readonly long TicksPerMillisecond = Stopwatch.Frequency / 1000;
+    // Converts Stopwatch ticks to TimeSpan/Win32 ticks (100 ns units).
+    private static readonly double StopwatchTicksToTimeSpanTicksFactor = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;
+    internal static readonly long StopwatchTicksPerMillisecond = Stopwatch.Frequency / 1000;
     internal const uint NtCreateWaitCompletionPacketAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.TIMER_QUERY_STATE;
     internal const uint CreateWaitableTimerExWAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.SYNCHRONIZE;
     private const int MinRequiredWindowsBuildNumber = 17134; // This is the build number of Windows 10 Version 1803
     private static readonly Version? WindowsVersion = GetWindowsVersion();
-
+    
     internal static bool PlatformSupportsQuickTick()
     {
         if (WindowsVersion is null)
@@ -42,5 +44,10 @@ internal static class QuickTickHelper
         // Environment.OSVersion.Version would return MajorVersion 6 in .NET Framework without manifest file.
         return Win32Interop.GetRealWindowsVersion();
 #endif
+    }
+    
+    internal static long StopwatchTicksToTimeSpanTicks(long stopwatchTicks)
+    {
+        return (long)(stopwatchTicks * StopwatchTicksToTimeSpanTicksFactor);
     }
 }

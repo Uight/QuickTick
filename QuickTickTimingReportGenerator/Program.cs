@@ -214,7 +214,7 @@ class Program
         Thread.CurrentThread.Priority = priority;
         Thread.Sleep(100);
 
-        var sleepTicks = (int)(QuickTickHelper.TicksPerMillisecond * durationMs);
+        var sleepTicks = (int)(TimeSpan.TicksPerMillisecond * durationMs);
 
         var samples = new List<double>();
         int progressInterval = Math.Max(1, iterations / 10);
