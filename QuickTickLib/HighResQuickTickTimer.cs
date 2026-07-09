@@ -9,7 +9,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     private volatile bool autoReset;
     private volatile bool running;
     private volatile bool skipMissedIntervals;
-    private volatile float intervalMs;
+    private double intervalMs;
     private volatile float sleepThreshold = 1.5f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
     private volatile float yieldThreshold = 0.75f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
     private long intervalTicks;
@@ -17,11 +17,12 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     private CancellationTokenSource? cancellationTokenSource;
     private Thread? workerThread;
     private readonly object stateLock = new();
-    private QuickTickElapsedEventHandler? elapsed;
+
+    internal Thread? WorkerThreadForTests => workerThread;
 
     public double Interval
     {
-        get => intervalMs;
+        get => Volatile.Read(ref intervalMs);
         set
         {
             if (value > int.MaxValue || value < 0.5 || double.IsNaN(value))
@@ -29,8 +30,8 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
                 throw new ArgumentOutOfRangeException(nameof(value), "Interval must be between 0.5 and int.MaxValue");
             }
 
-            intervalMs = (float)value;
-            Interlocked.Exchange(ref intervalTicks, (long)(intervalMs * QuickTickHelper.StopwatchTicksPerMillisecond));
+            Volatile.Write(ref intervalMs, value);
+            Interlocked.Exchange(ref intervalTicks, (long)(value * QuickTickHelper.StopwatchTicksPerMillisecond));
         }
     }
 
@@ -59,11 +60,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
         }
     }
 
-    public event QuickTickElapsedEventHandler? Elapsed
-    {
-        add => elapsed += value;
-        remove => elapsed -= value;
-    }
+    public event QuickTickElapsedEventHandler? Elapsed;
 
     /// <summary>
     /// Defines the minimum time that must be available towards the next timer iteration for the thread to sleep.
@@ -133,7 +130,8 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
             workerThread = new Thread(() => RunTimer(cts))
             {
                 IsBackground = true,
-                Priority = Priority
+                Priority = Priority,
+                Name = "QuickTick Timer"
             };
 
             cancellationTokenSource = cts;
@@ -235,7 +233,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
 
             var timeSinceLastFire = TimeSpan.FromTicks(QuickTickHelper.StopwatchTicksToTimeSpanTicks(currentTicks - lastFireTicksLocal));
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
-            var handler = elapsed;
+            var handler = Elapsed;
 
             if (!autoReset)
             {
@@ -252,6 +250,6 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     public void Dispose()
     {
         Stop();
-        elapsed = null;
+        Elapsed = null;
     }
 }

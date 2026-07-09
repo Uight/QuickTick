@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using NUnit.Framework;
 using QuickTickLib;
@@ -39,6 +38,14 @@ public class TimerBehaviorTests
         "fallback"       => new QuickTickTimerFallback(IntervalMs),
         "highResolution" => new HighResQuickTickTimer(IntervalMs),
         _                => throw new ArgumentException($"Unknown timer kind: {kind}", nameof(kind))
+    };
+
+    private static Thread? GetWorkerThread(IQuickTickTimer timer) => timer switch
+    {
+        QuickTickTimerImplementation impl => impl.WorkerThreadForTests,
+        QuickTickTimerFallback fallback   => fallback.WorkerThreadForTests,
+        HighResQuickTickTimer highRes     => highRes.WorkerThreadForTests,
+        _                                 => throw new ArgumentException($"Unknown timer type: {timer.GetType()}", nameof(timer))
     };
     
     [TestCaseSource(nameof(AllTimerKinds))]
@@ -108,26 +115,23 @@ public class TimerBehaviorTests
         var count = 0;
         timer.Elapsed += (_, _) => count++;
 
-        var proc = Process.GetCurrentProcess();
-        proc.Refresh();
-        var threadsBefore = proc.Threads.Count;
+        timer.Start();
+        var workerAfterFirstStart = GetWorkerThread(timer);
+        Assert.That(workerAfterFirstStart, Is.Not.Null, $"{kind}: Start() should have spawned a worker thread");
 
         timer.Start();
         timer.Start();
         timer.Start();
         timer.Start();
-        timer.Start();
 
-        Thread.Sleep(50); // Let spawned threads settle before counting
-        proc.Refresh();
-        var threadsAfterMultipleStarts = proc.Threads.Count;
+        var workerAfterMultipleStarts = GetWorkerThread(timer);
+        Assert.That(ReferenceEquals(workerAfterFirstStart, workerAfterMultipleStarts), Is.True, $"{kind}: subsequent Start() calls replaced the worker thread instead of being ignored");
+        Assert.That(workerAfterFirstStart!.IsAlive, Is.True, $"{kind}: subsequent Start() calls killed the running worker thread");
 
-        Thread.Sleep(450); // Run for total ~500ms
+        Thread.Sleep(500); // Run for ~500ms
         timer.Stop();
 
         Assert.That(count, Is.InRange(14, 37)); // One timer should run only, still expect ~32 fires
-
-        Assert.That(threadsAfterMultipleStarts - threadsBefore, Is.LessThanOrEqualTo(1), $"{kind}: multiple Start() calls spawned more than 1 new thread");
     }
 
     [TestCaseSource(nameof(AllTimerKinds))]
@@ -167,24 +171,22 @@ public class TimerBehaviorTests
     [TestCaseSource(nameof(AllTimerKinds))]
     public void Dispose_StopsTimer(string kind)
     {
-        var proc = Process.GetCurrentProcess();
-        proc.Refresh();
-        var threadsBeforeTimerCreation = proc.Threads.Count;
-        
         var timer = CreateTimer(kind);
         var count = 0;
         var firstFired = new ManualResetEventSlim(false);
         timer.Elapsed += (_, _) => { count++; firstFired.Set(); };
         timer.Start();
         Assert.That(firstFired.Wait(TimeSpan.FromMilliseconds(500)), Is.True);
+
+        var workerThread = GetWorkerThread(timer);
+        Assert.That(workerThread, Is.Not.Null, $"{kind}: Start() should have spawned a worker thread");
+
         timer.Dispose();
         var countAtDispose = count;
         Thread.Sleep(150);
         Assert.That(count, Is.EqualTo(countAtDispose));
-        
-        proc.Refresh();
-        var threadsAfterDispose = proc.Threads.Count;
-        Assert.That(threadsAfterDispose - threadsBeforeTimerCreation, Is.LessThanOrEqualTo(0), $"{kind}: Creating and disposing a timer left a ghost thread");
+
+        Assert.That(workerThread!.IsAlive, Is.False, $"{kind}: Dispose() left the worker thread running");
     }
     
     [TestCaseSource(nameof(AllTimerKinds))]

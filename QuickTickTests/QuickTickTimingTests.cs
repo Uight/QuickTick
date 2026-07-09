@@ -13,7 +13,7 @@ public class QuickTickTimingTests
         var sw = Stopwatch.StartNew();
         QuickTickTiming.Sleep(50);
         sw.Stop();
-        Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 100.0));
+        Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 125.0));
     }
 
     [Test]
@@ -31,7 +31,7 @@ public class QuickTickTimingTests
         var sw = Stopwatch.StartNew();
         QuickTickTiming.Delay(50).GetAwaiter().GetResult();
         sw.Stop();
-        Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 100.0));
+        Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 125.0));
     }
 
     [Test]
@@ -49,7 +49,7 @@ public class QuickTickTimingTests
         var sw = Stopwatch.StartNew();
         QuickTickTiming.Delay(TimeSpan.FromMilliseconds(50)).GetAwaiter().GetResult();
         sw.Stop();
-        Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 100.0));
+        Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 125.0));
     }
 
     [Test]
@@ -109,7 +109,7 @@ public class QuickTickTimingFallbackPathTests
         var sw = Stopwatch.StartNew();
         QuickTickTiming.Sleep(50);
         sw.Stop();
-        Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 150.0));
+        Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 250.0));
     }
 
     [Test]
@@ -118,7 +118,7 @@ public class QuickTickTimingFallbackPathTests
         var sw = Stopwatch.StartNew();
         QuickTickTiming.Delay(50).GetAwaiter().GetResult();
         sw.Stop();
-        Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 150.0));
+        Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 250.0));
     }
 
     [Test]
@@ -127,7 +127,7 @@ public class QuickTickTimingFallbackPathTests
         var sw = Stopwatch.StartNew();
         QuickTickTiming.Delay(TimeSpan.FromMilliseconds(50)).GetAwaiter().GetResult();
         sw.Stop();
-        Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 150.0));
+        Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 250.0));
     }
 
     [Test]

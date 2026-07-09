@@ -40,8 +40,8 @@ QuickTick falls back to the standard .NET timers, which already provide high pre
 
 See the macOS timing report for more details. 
 
-For best results, use HighResQuickTickTimer with adjusted settings. See macOS timing report Comment. This effectivly burns a whole CPU core to hold a precise timing.
-The timing accurancy of `QuickTickTiming.Sleep()` and `QuickTickTiming.Delay()` match the native .NET function but are inprecise and can't be improved easily.
+For best results, use HighResQuickTickTimer with adjusted settings. See macOS timing report Comment. This effectively burns a whole CPU core to hold a precise timing.
+The timing accuracy of `QuickTickTiming.Sleep()` and `QuickTickTiming.Delay()` match the native .NET function but are imprecise and can't be improved easily.
 
 ## Performance Reports
 
@@ -52,8 +52,8 @@ This are some performance reports of the QuickTickTiming.Sleep() Function aswell
 |---------------------|----------|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Windows 11          | Normal   | Energy Saving    | [📄 v2.1 · .NET 8.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.1_Report_Win11_NormalPrio_EnergySaving_Net8.pdf)                    | ⚠️ Lower accuracy than high power, but still much better than default .NET functions                                                                |
 | Windows 11          | Highest  | Ultimate Power   | [📄 v2.1 · .NET 8.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.1_Report_Win11_HighestPrio_UltimatePower_Net8.pdf)                  | ✅ Stable high-resolution timing                                                                                                                    |
-| Windows Server 2022 | Highest  | High Performance | [📄 v2.1 · .NET 8.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.1_Report_Windows_Sever_2022_HighestPrio_HighPerformance_Net8.pdf)   | ✅ Stable high-resolution timing                                                                                                                    |
-| Windows Server 2025 | Highest  | High Performance | [📄 v2.2 · .NET 10.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.2_Report_Windows_Sever_2025_HighestPrio_HighPerformance_Net10.pdf) | ✅ Stable high-resolution timing                                                                                                                    |
+| Windows Server 2022 | Highest  | High Performance | [📄 v2.1 · .NET 8.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.1_Report_Windows_Server_2022_HighestPrio_HighPerformance_Net8.pdf)   | ✅ Stable high-resolution timing                                                                                                                    |
+| Windows Server 2025 | Highest  | High Performance | [📄 v2.2 · .NET 10.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.2_Report_Windows_Server_2025_HighestPrio_HighPerformance_Net10.pdf) | ✅ Stable high-resolution timing                                                                                                                    |
 | Ubuntu 24.04.3 LTS  | Highest  | N/A              | [📄 v2.1 · .NET 8.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.1_Report_Ubuntu_24.04.3_HighestPrio_Net8.pdf)                       | ✅ Stable high-resolution timing                                                                                                                    |
 | macOS 15.5 Sequoia  | Highest  | N/A              | [📄 v2.1 · .NET 8.0](https://github.com/Uight/QuickTick/tree/main/QuickTickTimingReportGenerator/Reports/QuickTick_2.1_Report_macOS_15.5_Sequoia_HighestPrio_Net8.pdf)                   | ⚠️ Default .NET timers limit precision to around ~10 ms. HighResQuickTickTimer can help with `SleepThreshold ≈ 15 ms` and `YieldThreshold ≈ 1.5 ms` |
 
@@ -89,7 +89,7 @@ class Program
         using QuickTickTimer timer = new QuickTickTimer(500);
         timer.SkipMissedIntervals = false;
         timer.AutoReset = true;
-        timer.Elapsed += Timer_Elapsed;
+        timer.Elapsed += TimerElapsed;
         timer.Start();
 
         Thread.Sleep(5000); // Run for 5 seconds
@@ -129,7 +129,7 @@ The timer therefore has no influence on the remaining program and calls like `Th
 > [!IMPORTANT]
 > The `QuickTickTimer` class is able to be used cross-platform. However on systems that are not windows it falls back to
 > a fallback implementation built on base .net functions, that provides the same interface.
-> For non windows platforms the accuracy of the functions soly rely on the accurancy of the base `.Net` functions.
+> For non windows platforms the accuracy of the functions solely relies on the accuracy of the base `.Net` functions.
 > For some platforms like Linux this works great. But for others there might be limitatons just as windows has them with the 15.6 ms timing.
 > macOS for example seems to have a minimum sleep time of around 10 ms. (See [Supported Platforms](#supported-platforms) for details)
 
@@ -197,7 +197,7 @@ public QuickTickTimer(TimeSpan interval)
 
 Initializes a new instance of the `QuickTickTimer` class with the specified interval as a `TimeSpan`.
 Be aware that using TimeSpan.FromMilliseconds() allready rounds to full milliseconds so if you want
-tp create a timer with sub millisecond timing you would need to create the timeSpan with TimeSpan.FromMicroseconds()
+to create a timer with sub millisecond timing you would need to create the timeSpan with TimeSpan.FromMicroseconds()
 
 ##### Parameters
 
@@ -378,8 +378,8 @@ Setting SleepThreshold to int.MaxValue will basically disable sleeping the threa
 > systems and for 400 µs using a special `QuickTickTiming.QuickTickSleep()` function under windows. Testing for linux and windows showed, 
 > that in both cases the actual sleep time stays under 1.5 ms in over 99% of all cases which is why 1.5 ms is the default sleep time.
 > An even safer value is 2.0 ms as in testing all minimal sleep timings stayed under 2.0 ms for both linux and windows.
-> For systems like macOS where the accurancy of `Thread.Sleep()` is way worse than under linux a good value for the `SleepThreshold` is around 15 ms,
-> altough it should be remembered, that this will basically use a full core.
+> For systems like macOS where the accuracy of `Thread.Sleep()` is way worse than under linux a good value for the `SleepThreshold` is around 15 ms,
+> although it should be remembered, that this will basically use a full core.
 
 > [!Note]
 > Not part of the `IQuickTickTimer` interface; Only available from the class directly
@@ -394,7 +394,7 @@ Defines the minimum time that must be available towards the next timer iteration
 Increasing this time can lead to better timing but increases CPU usage as the code will SpinWait instead.
 Must be at least 0.0 and at most the value of SleepThreshold. 
 Setting YieldThreshold equal to SleepThreshold disables yielding (goes directly to spin wait).
-Setting YieldThreshold equal to 0.0 will basically disable spin waiting altough if no process is ready to run on this thread the behavior is almost the same.
+Setting YieldThreshold equal to 0.0 will basically disable spin waiting although if no process is ready to run on this thread the behavior is almost the same.
 
 > [!Note]
 > Not part of the `IQuickTickTimer` interface; Only available from the class directly

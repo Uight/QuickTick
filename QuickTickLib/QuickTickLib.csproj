@@ -5,7 +5,7 @@
     <TargetFrameworks>net8.0;net10.0;net48</TargetFrameworks>
 
     <Authors>Uight</Authors>
-    <Description>HighPrecision Timer, Sleep and Delay functions in .net8.0</Description>
+    <Description>High-precision Timer, Sleep and Delay functions for .NET 8.0, .NET 10.0 and .NET Framework 4.8</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Uight/QuickTick</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Uight/QuickTick</RepositoryUrl>
@@ -14,13 +14,19 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <PackageReleaseNotes>https://github.com/Uight/QuickTick/releases</PackageReleaseNotes>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Version>2.3.0</Version>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-   
+
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
+
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,6 +36,10 @@
   <ItemGroup>
     <InternalsVisibleTo Include="QuickTickTimingReportGenerator" />
     <InternalsVisibleTo Include="QuickTickTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.300" PrivateAssets="All" />
   </ItemGroup>
 
 </Project>
