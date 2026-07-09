@@ -10,26 +10,23 @@ internal static class QuickTickHelper
     internal static readonly long StopwatchTicksPerMillisecond = Stopwatch.Frequency / 1000;
     internal const uint NtCreateWaitCompletionPacketAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.TIMER_QUERY_STATE;
     internal const uint CreateWaitableTimerExWAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.SYNCHRONIZE;
-    private const int MinRequiredWindowsBuildNumber = 17134; // This is the build number of Windows 10 Version 1803
+    private static readonly Version MinRequiredWindowsVersion = new(10, 0, 17134); // Windows 10 Version 1803
     private static readonly Version? WindowsVersion = GetWindowsVersion();
-    
+
     // Current Windows 10 versions / Server 2019+ will support QuickTick. The minimal supported Windows version
-    // is Version 1803 of Windows 10 as in that version the HighPrecision flag was added to CreateWaitableTimerExW which this library relies on
+    // is Version 1803 of Windows 10 as in that version the HighPrecision flag was added to CreateWaitableTimerExW which this library relies on.
+    // WindowsVersion is null on non-Windows platforms, and Version's comparison operators treat null as lower than any version, so this is false there too.
     internal static bool PlatformSupportsQuickTick()
     {
-        return WindowsVersion is { Major: >= 10, Build: >= MinRequiredWindowsBuildNumber };
+        return WindowsVersion >= MinRequiredWindowsVersion;
     }
 
-    // True for Windows versions too old to run QuickTick. We can't fall back to the Fallback implementation for these since it relies on
-    // System.Timers.Timer which is limited by windows timing, so it can not behave similar to the actual code.
-    private static bool IsUnsupportedWindowsVersion()
-    {
-        return WindowsVersion is not null && !PlatformSupportsQuickTick();
-    }
-
+    // Only Windows below the minimum version is an error. We can't fall back to the Fallback implementation for these since it relies on
+    // System.Timers.Timer which is limited by windows timing, so it can not behave similar to the actual code. Non-Windows platforms are fine
+    // with the Fallback implementation, so they are not rejected here.
     internal static void ThrowIfUnsupportedWindowsVersion()
     {
-        if (IsUnsupportedWindowsVersion())
+        if (WindowsVersion is { } windowsVersion && windowsVersion < MinRequiredWindowsVersion)
         {
             throw new PlatformNotSupportedException("QuickTickLib can not run under Windows version below version 10.");
         }
