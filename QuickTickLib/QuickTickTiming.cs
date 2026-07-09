@@ -12,19 +12,33 @@ public static class QuickTickTiming
     // Settable in tests (InternalsVisibleTo("QuickTickTests")) to exercise the Thread.Sleep/Task.Delay fallback path
     internal static bool IsQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
 
+    // Not async on purpose: usage errors (unsupported platform) should throw synchronously at the call site
     // ReSharper disable once MemberCanBePrivate.Global
-    public static async Task Delay(int millisecondsDelay, CancellationToken cancellationToken = default)
+    public static Task Delay(int millisecondsDelay, CancellationToken cancellationToken = default)
     {
         QuickTickHelper.ThrowIfUnsupportedWindowsVersion();
 
         if (!IsQuickTickSupported || millisecondsDelay <= 0)
         {
-            await Task.Delay(millisecondsDelay, cancellationToken);
-            return;
+            return Task.Delay(millisecondsDelay, cancellationToken);
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled(cancellationToken);
+        }
 
+        return DelayCore(millisecondsDelay, cancellationToken);
+    }
+
+    public static Task Delay(TimeSpan delay, CancellationToken cancellationToken = default)
+    {
+        var milliseconds = (int)Math.Ceiling(delay.TotalMilliseconds);
+        return Delay(milliseconds, cancellationToken);
+    }
+    
+    private static async Task DelayCore(int millisecondsDelay, CancellationToken cancellationToken)
+    {
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using (var timer = new QuickTickTimer(millisecondsDelay))
@@ -32,18 +46,12 @@ public static class QuickTickTiming
             timer.AutoReset = false;
             timer.Elapsed += (_, _) => tcs.TrySetResult(true);
             timer.Start();
-
-            using (cancellationToken.Register(() => tcs.TrySetCanceled()))
+            
+            using (cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken)))
             {
                 await tcs.Task;
             }
         }
-    }
-
-    public static async Task Delay(TimeSpan delay, CancellationToken cancellationToken = default)
-    {
-        var milliseconds = (int)Math.Ceiling(delay.TotalMilliseconds);
-        await Delay(milliseconds, cancellationToken);
     }
 
     public static void Sleep(int millisecondsTimeout)

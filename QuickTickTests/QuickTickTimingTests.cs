@@ -60,9 +60,10 @@ public class QuickTickTimingTests
         var token = cts.Token;
 
         var sw = Stopwatch.StartNew();
-        Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(5000, token));
+        var exception = Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(5000, token));
         sw.Stop();
         Assert.That(sw.Elapsed.TotalMilliseconds, Is.LessThan(200.0), "Should cancel immediately, not run the full 5 s delay");
+        Assert.That(exception!.CancellationToken, Is.EqualTo(token), "Exception should carry the caller's token, like Task.Delay");
     }
 
     [Test]
@@ -86,9 +87,10 @@ public class QuickTickTimingTests
         var token = cts.Token;
 
         var sw = Stopwatch.StartNew();
-        Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(5000, token));
+        var exception = Assert.CatchAsync<OperationCanceledException>(() => QuickTickTiming.Delay(5000, token));
         sw.Stop();
         Assert.That(sw.Elapsed.TotalMilliseconds, Is.InRange(30.0, 200.0), "Should cancel after ~50 ms, not run the full 5 s delay");
+        Assert.That(exception!.CancellationToken, Is.EqualTo(token), "Exception should carry the caller's token, like Task.Delay");
     }
 }
 
