@@ -28,7 +28,7 @@ internal static class QuickTickHelper
     {
         if (WindowsVersion is { } windowsVersion && windowsVersion < MinRequiredWindowsVersion)
         {
-            throw new PlatformNotSupportedException("QuickTickLib can not run under Windows version below version 10.");
+            throw new PlatformNotSupportedException("QuickTickLib can't run under Windows versions below Windows 10 Version 1803.");
         }
     }
 

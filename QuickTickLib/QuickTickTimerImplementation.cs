@@ -24,6 +24,8 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
     private Thread? completionThread;
     private ThreadPriority threadPriority = ThreadPriority.Normal;
 
+    internal Thread? WorkerThreadForTests => completionThread;
+
     public event QuickTickElapsedEventHandler? Elapsed;
 
     public double Interval

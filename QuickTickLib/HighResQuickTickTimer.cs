@@ -18,6 +18,8 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     private Thread? workerThread;
     private readonly object stateLock = new();
 
+    internal Thread? WorkerThreadForTests => workerThread;
+
     public double Interval
     {
         get => Volatile.Read(ref intervalMs);

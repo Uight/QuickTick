@@ -18,6 +18,8 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
     private Thread? workerThread;
     private readonly object stateLock = new();
 
+    internal Thread? WorkerThreadForTests => workerThread;
+
     public double Interval
     {
         get => timer.Interval;
