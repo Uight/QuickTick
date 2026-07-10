@@ -7,8 +7,11 @@
 
 It is inspired by discussions in the [.NET Runtime issue #67088](https://github.com/dotnet/runtime/issues/67088) and is based 
 on the **high-resolution timer** implemented by Microsoft's Go team, as detailed in [this blog post](https://devblogs.microsoft.com/go/high-resolution-timers-windows/).
+Note that the Go solution additionally routes the timer signal through an IO completion port (via `NtAssociateWaitCompletionPacket`),
+because the Go runtime parks all waits in a single completion port. .NET has no such constraint, so QuickTick waits on the timer handle directly —
+the precision comes entirely from the high-resolution timer itself and the IOCP machinery is not needed.
 
-QuickTick leverages **IO Completion Ports (IOCP)** and **NT system calls** on windows to achieve precise and efficient timing without needing to fiddle with the system clock rate.
+QuickTick leverages **high-resolution waitable timers** (`CreateWaitableTimerExW` with the high-resolution flag) on windows to achieve precise and efficient timing without needing to fiddle with the system clock rate.
 It enables the creation of a `Timer` and the use of `Sleep` and `Delay` functions with precision below **15.6 ms**, ensuring accurate timing without impacting other parts of your application.
 
 ## Supported OS
@@ -64,7 +67,7 @@ This are some performance reports of the QuickTickTiming.Sleep() Function aswell
 
 Namespace: QuickTickLib
 
-Provides a high-resolution timer using IO Completion Ports (IOCP) and `NtAssociateWaitCompletionPacket` for 
+Provides a high-resolution timer using windows high-resolution waitable timers for 
 precise timing events under windows. Similar in use to the `System.Timers.Timer` class.
 
 ```csharp
@@ -121,8 +124,8 @@ class Program
 
 ### Remarks
 
-QuickTickTimer is a timer based on IO Completion Ports for high-precision timing.
-Using the windows function `NtAssociateWaitCompletionPacket` it can go below the default 
+QuickTickTimer is a timer based on windows high-resolution waitable timers for high-precision timing.
+Using the windows function `CreateWaitableTimerExW` with the `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION` flag it can go below the default 
 windows timer resolution of 15.6 ms without needing to set the system clock rate using `TimeBeginPeriod`.
 The timer therefore has no influence on the remaining program and calls like `Thread.Sleep` or `Task.Delay` are not affected.
 
@@ -131,10 +134,10 @@ The timer therefore has no influence on the remaining program and calls like `Th
 > a fallback implementation built on base .net functions, that provides the same interface.
 > For non windows platforms the accuracy of the functions solely relies on the accuracy of the base `.Net` functions.
 > For some platforms like Linux this works great. But for others there might be limitatons just as windows has them with the 15.6 ms timing.
-> macOS for example seems to have a minimum sleep time of around 10 ms. (See [Supported Platforms](#supported-platforms) for details)
+> macOS for example seems to have a minimum sleep time of around 10 ms. (See [Supported Platforms](#supported-os) for details)
 
 > [!IMPORTANT]
-> The `Elapsed` event is fired on a completion thread, which is different from the thread that started the timer.
+> The `Elapsed` event is fired on the timer's worker thread, which is different from the thread that started the timer.
 > 
 > Ensure that your event handler consistently completes within the configured interval. If execution takes longer or varies significantly,
 > subsequent timer events will be delayed and overall timing accuracy will degrade.
@@ -142,7 +145,7 @@ The timer therefore has no influence on the remaining program and calls like `Th
 > If execution time is inconsistent or may occasionally be long-running, use a decoupling mechanism (e.g. queue, worker thread, or task)
 > to offload processing and keep the timer responsive.
 > 
-> ⚠️ Exceptions thrown inside the event handler will propagate on the completion thread and may terminate it, since the handler is executed
+> ⚠️ Exceptions thrown inside the event handler will propagate on the timer's worker thread and may terminate it, since the handler is executed
 > directly for performance reasons. Always handle exceptions within your event code.
 > 
 > _This behavior applies to `QuickTickTimer` (both native and fallback implementations on non-Windows systems) and `HighResQuickTickTimer`._
@@ -405,7 +408,7 @@ Setting YieldThreshold equal to 0.0 will basically disable spin waiting although
 
 Namespace: QuickTickLib
 
-Provides sleep and delay functions with high precision using IO Completion Ports (IOCP) and `NtAssociateWaitCompletionPacket` for precise timing events under windows.
+Provides sleep and delay functions with high precision using windows high-resolution waitable timers for precise timing events under windows.
 Running under different platforms it just falls back to the built in .net functions.
 
 ```csharp

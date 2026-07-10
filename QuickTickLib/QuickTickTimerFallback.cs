@@ -8,45 +8,45 @@ namespace QuickTickLib;
 
 internal sealed class QuickTickTimerFallback : IQuickTickTimer
 {
-    private readonly System.Timers.Timer timer;
-    private BlockingCollection<bool>? eventQueue;
-    private volatile bool running;
-    private volatile bool skipMissedIntervals;
-    private int disposedState;
-    private ThreadPriority threadPriority = ThreadPriority.Normal;
-    private CancellationTokenSource? cancellationTokenSource;
-    private Thread? workerThread;
-    private readonly object stateLock = new();
+    private readonly System.Timers.Timer _timer;
+    private BlockingCollection<bool>? _eventQueue;
+    private volatile bool _running;
+    private volatile bool _skipMissedIntervals;
+    private int _disposedState;
+    private ThreadPriority _threadPriority = ThreadPriority.Normal;
+    private CancellationTokenSource? _cancellationTokenSource;
+    private Thread? _workerThread;
+    private readonly object _stateLock = new();
 
-    internal Thread? WorkerThreadForTests => workerThread;
+    internal Thread? WorkerThreadForTests => _workerThread;
 
     public double Interval
     {
-        get => timer.Interval;
-        set => timer.Interval = value;
+        get => _timer.Interval;
+        set => _timer.Interval = value;
     }
 
     public bool AutoReset
     {
-        get => timer.AutoReset;
-        set => timer.AutoReset = value;
+        get => _timer.AutoReset;
+        set => _timer.AutoReset = value;
     }
 
     public bool SkipMissedIntervals
     {
-        get => skipMissedIntervals;
-        set => skipMissedIntervals = value;
+        get => _skipMissedIntervals;
+        set => _skipMissedIntervals = value;
     }
 
     public ThreadPriority Priority
     {
-        get => threadPriority;
+        get => _threadPriority;
         set
         {
-            threadPriority = value;
-            if (workerThread is { IsAlive: true })
+            _threadPriority = value;
+            if (_workerThread is { IsAlive: true })
             {
-                workerThread.Priority = value;
+                _workerThread.Priority = value;
             }
         }
     }
@@ -55,65 +55,65 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
     public QuickTickTimerFallback(double interval)
     {
-        timer = new System.Timers.Timer(interval);
-        timer.Elapsed += OnElapsedInternal;
-        timer.AutoReset = true;
+        _timer = new System.Timers.Timer(interval);
+        _timer.Elapsed += OnElapsedInternal;
+        _timer.AutoReset = true;
     }
 
     public void Start()
     {
-        lock (stateLock)
+        lock (_stateLock)
         {
-            if (running)
+            if (_running)
             {
                 return;
             }
 
-            running = true;
+            _running = true;
             var cts = new CancellationTokenSource();
             var queue = new BlockingCollection<bool>();
 
-            workerThread = new Thread(() => Run(cts, queue))
+            _workerThread = new Thread(() => Run(cts, queue))
             {
                 IsBackground = true,
                 Priority = Priority,
                 Name = "QuickTick Timer"
             };
 
-            cancellationTokenSource = cts;
-            eventQueue = queue;
-            workerThread.Start();
-            timer.Start();
+            _cancellationTokenSource = cts;
+            _eventQueue = queue;
+            _workerThread.Start();
+            _timer.Start();
         }
     }
 
     public void Stop()
     {
-        lock (stateLock)
+        lock (_stateLock)
         {
-            if (!running)
+            if (!_running)
             {
                 return;
             }
 
-            running = false;
-            cancellationTokenSource?.Cancel();
-            cancellationTokenSource = null;
-            timer.Stop();
-            eventQueue?.CompleteAdding();
+            _running = false;
+            _cancellationTokenSource?.Cancel();
+            _cancellationTokenSource = null;
+            _timer.Stop();
+            _eventQueue?.CompleteAdding();
 
-            if (Thread.CurrentThread != workerThread)
+            if (Thread.CurrentThread != _workerThread)
             {
-                workerThread?.Join();
+                _workerThread?.Join();
             }
-            workerThread = null;
+            _workerThread = null;
         }
     }
 
     private void OnElapsedInternal(object? sender, ElapsedEventArgs e)
     {
         // Use tryAdd because the timer could still fire after Stop() which would cause exception because Stop() also call CompleteAdding() on the queue
-        eventQueue?.TryAdd(true);
+        _eventQueue?.TryAdd(true);
     }
 
     private void Run(CancellationTokenSource localCancellationTokenSource, BlockingCollection<bool> localEventQueue)
@@ -141,7 +141,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
             if (AutoReset)
             {
                 // If skipping is enabled, drain queue and only keep the latest
-                if (skipMissedIntervals && localEventQueue.Count > 0)
+                if (_skipMissedIntervals && localEventQueue.Count > 0)
                 {
                     while (localEventQueue.TryTake(out _))
                     {
@@ -165,7 +165,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
             if (!AutoReset)
             {
-                running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
+                _running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
                 localCancellationTokenSource.Cancel();
                 handler?.Invoke(this, elapsedEventArgs);
                 break;
@@ -177,7 +177,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref disposedState, 1) == 1)
+        if (Interlocked.Exchange(ref _disposedState, 1) == 1)
         {
             return;
         }
@@ -188,7 +188,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
         }
         finally
         {
-            timer.Dispose();
+            _timer.Dispose();
             Elapsed = null;
         }
     }

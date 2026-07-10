@@ -2,7 +2,7 @@
 
 namespace QuickTickTimingReportGenerator;
 
-public class CPUMonitor : IDisposable
+public class CpuMonitor : IDisposable
 {
     private readonly List<(DateTime Timestamp, double CpuUsage)> _metrics = new();
     private readonly Process _process = Process.GetCurrentProcess();

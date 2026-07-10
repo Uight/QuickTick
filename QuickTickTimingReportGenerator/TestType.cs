@@ -7,8 +7,8 @@ namespace QuickTickTimingReportGenerator;
 public enum TestType
 {
     QuickTickSleep,
-    Internal_QuickTickSleep,
+    InternalQuickTickSleep,
     QuickTickTimer,
     HighResQuickTickTimer,
-    KGySoft_HiResTimer
+    KGySoftHiResTimer
 }
