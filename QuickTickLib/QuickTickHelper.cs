@@ -8,7 +8,6 @@ internal static class QuickTickHelper
     // Converts Stopwatch ticks to TimeSpan/Win32 ticks (100 ns units).
     private static readonly double StopwatchTicksToTimeSpanTicksFactor = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;
     internal static readonly long StopwatchTicksPerMillisecond = Stopwatch.Frequency / 1000;
-    internal const uint NtCreateWaitCompletionPacketAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.TIMER_QUERY_STATE;
     internal const uint CreateWaitableTimerExWAccessRights = (uint)Win32Interop.TimerAccessMask.TIMER_MODIFY_STATE | (uint)Win32Interop.TimerAccessMask.SYNCHRONIZE;
     private static readonly Version MinRequiredWindowsVersion = new(10, 0, 17134); // Windows 10 Version 1803
     private static readonly Version? WindowsVersion = GetWindowsVersion();

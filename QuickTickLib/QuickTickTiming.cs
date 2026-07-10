@@ -7,7 +7,6 @@ public static class QuickTickTiming
     // Testing showed that waiting 0.5ms results in around 1ms average waiting while going to 0.4ms results in an average of 0.5ms wait time
     // QuickTickSleep expects 100ns (TimeSpan) ticks, same as its other caller Sleep(), so this must be derived from TimeSpan.TicksPerMillisecond
     private const long FourHundredMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.4);
-    private static readonly IntPtr SuccessCompletionKey = new(1);
 
     // Settable in tests (InternalsVisibleTo("QuickTickTests")) to exercise the Thread.Sleep/Task.Delay fallback path
     internal static bool IsQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
@@ -95,15 +94,6 @@ public static class QuickTickTiming
             throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
         }
 
-        var ntAssociateWaitCompletionPacketStatus = Win32Interop.NtAssociateWaitCompletionPacket(handles.WaitIocpHandle, handles.IocpHandle, handles.TimerHandle, SuccessCompletionKey, IntPtr.Zero, 0, IntPtr.Zero, out _);
-
-        if (ntAssociateWaitCompletionPacketStatus != 0)
-        {
-            throw new InvalidOperationException($"NtAssociateWaitCompletionPacket failed: {ntAssociateWaitCompletionPacketStatus:X8}");
-        }
-
-        // Checking the return value and the completion key is unnecessary since the IOCP is not shared and therefor we expect exactly one completion packet, which is the one we just set up above.
-        // The return value would only be false if the IOCP was disposed in which case we also want to stop waiting because that could only happen when the caller disposes the handles or program is shutting down
-        Win32Interop.GetQueuedCompletionStatus(handles.IocpHandle, out _, out _, out _, uint.MaxValue);
+        handles.TimerWaitHandle.WaitOne();
     }
 }
