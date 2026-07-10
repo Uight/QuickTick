@@ -6,11 +6,11 @@ namespace QuickTickTimingReportGenerator;
 public class TestConfig
 {
     [JsonConverter(typeof(StringEnumConverter))]
-    public ThreadPriority ThreadPriority { get; set; } = ThreadPriority.Normal;
-    public List<double> IntervalsMs { get; set; } = [];
-    public int TimeInSecondsPerTest { get; set; } = 10;
-    public int WarmupIntervals { get; set; } = 25;
-    public Dictionary<TestType, bool> EnabledTests { get; set; } = new();
+    public ThreadPriority ThreadPriority { get; } = ThreadPriority.Normal;
+    public List<double> IntervalsMs { get; private init; } = [];
+    public int TimeInSecondsPerTest { get; } = 10;
+    public int WarmupIntervals { get; } = 25;
+    public Dictionary<TestType, bool> EnabledTests { get; private init; } = new();
 
     public static TestConfig LoadConfig(string path)
     {

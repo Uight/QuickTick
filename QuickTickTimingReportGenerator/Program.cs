@@ -4,14 +4,15 @@ using QuestPDF.Infrastructure;
 using QuickTickLib;
 using SkiaSharp;
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace QuickTickTimingReportGenerator;
 
-class Program
+public static class Program
 {
-    static async Task Main(string[] args)
+    public static async Task Main()
     {
         var reportDir = Path.Combine(Directory.GetCurrentDirectory(), $"QuickTickReport_{DateTime.Now:yyyyMMdd_HHmmss}");
         Directory.CreateDirectory(reportDir);
@@ -114,7 +115,7 @@ class Program
         }
 
         var systemInfo = GetSystemInfo();
-        File.WriteAllText(Path.Combine(reportDir, "system_info.txt"), systemInfo);
+        await File.WriteAllTextAsync(Path.Combine(reportDir, "system_info.txt"), systemInfo);
 
         var pdfPath = Path.Combine(reportDir, "QuickTick_Report.pdf");
         GeneratePdfReport(pdfPath, allResults, reportDir, systemInfo, config);
@@ -133,7 +134,7 @@ class Program
 
         var timer = new HiResTimer { Interval = (float)intervalMs, Enabled = false };
 
-        timer.Elapsed += (_, __) =>
+        timer.Elapsed += (_, _) =>
         {
             var now = Stopwatch.GetTimestamp();
             var delta = (now - last) * 1000.0 / freq;
@@ -326,7 +327,6 @@ class Program
         var borderPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1, Style = SKPaintStyle.Stroke };
         var targetLinePaint = new SKPaint { Color = SKColors.Green, StrokeWidth = 3, IsAntialias = true };
         var gaussianPaint = new SKPaint { Color = SKColors.DarkRed, StrokeWidth = 2, IsAntialias = true, Style = SKPaintStyle.Stroke };
-        var avgLinePaint = new SKPaint { Color = SKColors.OrangeRed, StrokeWidth = 2, PathEffect = SKPathEffect.CreateDash(new float[] { 6, 4 }, 0) };
 
         // --- Fixed 0.1 ms bin width ---
         double binSize = 0.1;
@@ -351,7 +351,7 @@ class Program
         canvas.DrawLine(marginLeft, marginTop, marginLeft, height - marginBottom, borderPaint); // Y axis
         canvas.DrawLine(marginLeft, height - marginBottom, width - 20, height - marginBottom, borderPaint); // X axis
 
-        int labelSkip = (int)Math.Ceiling((float)binCount / (plotWidth / 40));
+        int labelSkip = (int)Math.Ceiling((float)binCount / (plotWidth / 40.0));
 
         // --- Draw bars and labels ---
         for (int i = 0; i < binCount; i++)
@@ -381,7 +381,7 @@ class Program
         // Bin width label
         canvas.DrawText($"Bin width: {binSize:0.000} ms", marginLeft, marginTop - 5, font, textPaint);
         canvas.DrawText("Count", 10, marginTop + 10, font, textPaint);
-        canvas.DrawText("Time (ms)", width / 2 - 40, height - 5, font, textPaint);
+        canvas.DrawText("Time (ms)", (int)Math.Round(width / 2.0) - 40, height - 5, font, textPaint);
 
         // --- Draw target line ---
         if (targetMs >= min && targetMs <= max)
@@ -584,7 +584,7 @@ class Program
                 page.Footer().AlignCenter().Text(text =>
                 {
                     text.Span("Generated on ");
-                    text.Span(DateTime.Now.ToString());
+                    text.Span(DateTime.Now.ToString(CultureInfo.InvariantCulture));
                 });
             });
         }).GeneratePdf(path);

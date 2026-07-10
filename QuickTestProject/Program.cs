@@ -22,6 +22,7 @@ using var cts = new CancellationTokenSource();
 _ = Task.Run(() =>
 {
     Thread.Sleep(45); // Use sub 46.8ms time (smaller 3*15.6) to get cancel around 50ms later
+    // ReSharper disable once AccessToDisposedClosure : Doesn't matter here
     cts.Cancel();
 });
 delayWithCancelStopwatch.Start();
@@ -62,13 +63,10 @@ timer.Stop(); // Just for testing
 timer.Start();
 timerStopwatch.Start();
 
-var run = true;
-
-while (run)
+while (true)
 {
     if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
     {
-        run = false;
         break;
     }
 
