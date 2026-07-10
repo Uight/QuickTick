@@ -20,10 +20,10 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 
     private CancellationTokenSource? _cancellationTokenSource;
     private ManualResetEvent? _stopEvent;
-    private Thread? _completionThread;
+    private Thread? _workerThread;
     private ThreadPriority _threadPriority = ThreadPriority.Normal;
 
-    internal Thread? WorkerThreadForTests => _completionThread;
+    internal Thread? WorkerThreadForTests => _workerThread;
 
     public event QuickTickElapsedEventHandler? Elapsed;
 
@@ -60,9 +60,9 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
         set
         {
             _threadPriority = value;
-            if (_completionThread is { IsAlive: true })
+            if (_workerThread is { IsAlive: true })
             {
-                _completionThread.Priority = value;
+                _workerThread.Priority = value;
             }
         }
     }
@@ -90,7 +90,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
             _stopEvent?.Dispose();
             var localStopEvent = new ManualResetEvent(false);
 
-            _completionThread = new Thread(() => CompletionThreadLoop(cts, localStopEvent))
+            _workerThread = new Thread(() => WorkerThreadLoop(cts, localStopEvent))
             {
                 IsBackground = true,
                 Priority = Priority,
@@ -99,7 +99,7 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 
             _cancellationTokenSource = cts;
             _stopEvent = localStopEvent;
-            _completionThread.Start();
+            _workerThread.Start();
         }
     }
 
@@ -118,23 +118,23 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 
             Win32Interop.CancelWaitableTimer(_handles.TimerHandle);
 
-            if (Thread.CurrentThread != _completionThread)
+            if (Thread.CurrentThread != _workerThread)
             {
-                // Wake the completion thread out of its wait
+                // Wake the worker thread out of its wait
                 // If called from the same thread we know we are called from the event handler code therefore we are not waiting on the timer and don't need to signal
                 _stopEvent?.Set();
 
-                _completionThread?.Join();
+                _workerThread?.Join();
             }
-            _completionThread = null;
+            _workerThread = null;
 
-            // Safe even in the self-stop case: after the handler returns the completion thread only checks the cancellation token and exits, it never waits again
+            // Safe even in the self-stop case: after the handler returns the worker thread only checks the cancellation token and exits, it never waits again
             _stopEvent?.Dispose();
             _stopEvent = null;
         }
     }
 
-    private void CompletionThreadLoop(CancellationTokenSource localCancellationTokenSource, ManualResetEvent localStopEvent)
+    private void WorkerThreadLoop(CancellationTokenSource localCancellationTokenSource, ManualResetEvent localStopEvent)
     {
         // The timer is a synchronization (auto-reset) timer: a satisfied wait resets it and SetWaitableTimer resets any pending signal on re-arm,
         // so no stale signal can leak across Stop/Start cycles

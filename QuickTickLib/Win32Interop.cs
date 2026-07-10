@@ -27,7 +27,7 @@ internal static partial class Win32Interop
         SafeTimerHandle hTimer, // Pointer to the timer
         ref long lpDueTime, // Timer due time. Positive values are absolute timestamps while negative values are a reference to the current time (In 100ns steps)
         int lPeriod, // If bigger than 0 the timer will be signaled multiple times // Seems to be less precise so we just keep resetting the timer instead
-        IntPtr pfnCompletionRoutine, // Optional pointer to a completion routine // Not needed here as we use the I/O completion package instead 
+        IntPtr pfnCompletionRoutine, // Optional pointer to a completion routine // Not needed here as we wait on the timer handle directly
         IntPtr lpArgToCompletionRoutine, // Optional arguments for the completion routine // Not needed here
         [MarshalAs(UnmanagedType.Bool)] bool fResume // Setting for energy saving mode // Use false
     );
@@ -58,7 +58,7 @@ internal static partial class Win32Interop
         SafeTimerHandle hTimer, // Pointer to the timer
         ref long lpDueTime, // Timer due time. Positive values are absolute timestamps while negative values are a reference to the current time (In 100ns steps)
         int lPeriod, // If bigger than 0 the timer will be signaled multiple times // Seems to be less precise so we just keep resetting the timer instead
-        IntPtr pfnCompletionRoutine, // Optional pointer to a completion routine // Not needed here as we use the I/O completion package instead 
+        IntPtr pfnCompletionRoutine, // Optional pointer to a completion routine // Not needed here as we wait on the timer handle directly
         IntPtr lpArgToCompletionRoutine, // Optional arguments for the completion routine // Not needed here
         [MarshalAs(UnmanagedType.Bool)] bool fResume // Setting for energy saving mode // Use false
     );
