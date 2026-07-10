@@ -110,7 +110,8 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
         }
     }
 
-    private void OnElapsedInternal(object? sender, ElapsedEventArgs e)
+    // Internal for tests: called directly to simulate the timer callback racing Stop() without System.Timers.Timer swallowing exceptions
+    internal void OnElapsedInternal(object? sender, ElapsedEventArgs e)
     {
         // Use tryAdd because the timer could still fire after Stop() which would cause exception because Stop() also call CompleteAdding() on the queue
         _eventQueue?.TryAdd(true);
