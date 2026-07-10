@@ -23,10 +23,10 @@ public class TestConfig
                 EnabledTests = new Dictionary<TestType, bool>() 
                 {
                     { TestType.QuickTickSleep, true },
-                    { TestType.Internal_QuickTickSleep, false },
+                    { TestType.InternalQuickTickSleep, false },
                     { TestType.QuickTickTimer, true },
                     { TestType.HighResQuickTickTimer, true },
-                    { TestType.KGySoft_HiResTimer, true }
+                    { TestType.KGySoftHiResTimer, true }
                 }
             };
             return testConfig;

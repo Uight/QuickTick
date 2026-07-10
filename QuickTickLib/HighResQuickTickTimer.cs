@@ -6,23 +6,23 @@ namespace QuickTickLib;
 
 public sealed class HighResQuickTickTimer : IQuickTickTimer
 {
-    private volatile bool autoReset;
-    private volatile bool running;
-    private volatile bool skipMissedIntervals;
-    private double intervalMs;
-    private volatile float sleepThreshold = 1.5f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
-    private volatile float yieldThreshold = 0.75f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
-    private long intervalTicks;
-    private ThreadPriority threadPriority = ThreadPriority.Highest;
-    private CancellationTokenSource? cancellationTokenSource;
-    private Thread? workerThread;
-    private readonly object stateLock = new();
+    private volatile bool _autoReset;
+    private volatile bool _running;
+    private volatile bool _skipMissedIntervals;
+    private double _intervalMs;
+    private volatile float _sleepThreshold = 1.5f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
+    private volatile float _yieldThreshold = 0.75f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
+    private long _intervalTicks;
+    private ThreadPriority _threadPriority = ThreadPriority.Highest;
+    private CancellationTokenSource? _cancellationTokenSource;
+    private Thread? _workerThread;
+    private readonly object _stateLock = new();
 
-    internal Thread? WorkerThreadForTests => workerThread;
+    internal Thread? WorkerThreadForTests => _workerThread;
 
     public double Interval
     {
-        get => Volatile.Read(ref intervalMs);
+        get => Volatile.Read(ref _intervalMs);
         set
         {
             if (value > int.MaxValue || value < 0.5 || double.IsNaN(value))
@@ -30,32 +30,32 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
                 throw new ArgumentOutOfRangeException(nameof(value), "Interval must be between 0.5 and int.MaxValue");
             }
 
-            Volatile.Write(ref intervalMs, value);
-            Interlocked.Exchange(ref intervalTicks, (long)(value * QuickTickHelper.StopwatchTicksPerMillisecond));
+            Volatile.Write(ref _intervalMs, value);
+            Interlocked.Exchange(ref _intervalTicks, (long)(value * QuickTickHelper.StopwatchTicksPerMillisecond));
         }
     }
 
     public bool AutoReset
     {
-        get => autoReset;
-        set => autoReset = value;
+        get => _autoReset;
+        set => _autoReset = value;
     }
 
     public bool SkipMissedIntervals
     {
-        get => skipMissedIntervals;
-        set => skipMissedIntervals = value;
+        get => _skipMissedIntervals;
+        set => _skipMissedIntervals = value;
     }
 
     public ThreadPriority Priority
     {
-        get => threadPriority;
+        get => _threadPriority;
         set
         {
-            threadPriority = value;
-            if (workerThread is { IsAlive: true })
+            _threadPriority = value;
+            if (_workerThread is { IsAlive: true })
             {
-                workerThread.Priority = value;
+                _workerThread.Priority = value;
             }
         }
     }
@@ -71,7 +71,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     /// </summary>
     public double SleepThreshold
     {
-        get => sleepThreshold;
+        get => _sleepThreshold;
         set
         {
             if (value < 1.0 || value > int.MaxValue || double.IsNaN(value))
@@ -79,12 +79,12 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
                 throw new ArgumentOutOfRangeException(nameof(value), "SleepThreshold must be greater than or equal to 1.0 and smaller than int.MaxValue.");
             }
 
-            if (yieldThreshold > value)
+            if (_yieldThreshold > value)
             {
                 throw new ArgumentOutOfRangeException(nameof(value), "SleepThreshold must be greater than or equal to YieldThreshold.");
             }
 
-            sleepThreshold = (float)value;
+            _sleepThreshold = (float)value;
         }
     }
 
@@ -97,15 +97,15 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     /// </summary>
     public double YieldThreshold
     {
-        get => yieldThreshold;
+        get => _yieldThreshold;
         set
         {
-            if (value < 0.0 || value > sleepThreshold || double.IsNaN(value))
+            if (value < 0.0 || value > _sleepThreshold || double.IsNaN(value))
             {
                 throw new ArgumentOutOfRangeException(nameof(value), "YieldThreshold must be greater than or equal to 0.0 and less than or equal to SleepThreshold.");
             }
 
-            yieldThreshold = (float)value;
+            _yieldThreshold = (float)value;
         }
     }
 
@@ -117,53 +117,53 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
 
     public void Start()
     {
-        lock (stateLock)
+        lock (_stateLock)
         {
-            if (running)
+            if (_running)
             {
                 return;
             }
 
-            running = true;
+            _running = true;
             var cts = new CancellationTokenSource();
 
-            workerThread = new Thread(() => RunTimer(cts))
+            _workerThread = new Thread(() => RunTimer(cts))
             {
                 IsBackground = true,
                 Priority = Priority,
                 Name = "QuickTick Timer"
             };
 
-            cancellationTokenSource = cts;
-            workerThread.Start();
+            _cancellationTokenSource = cts;
+            _workerThread.Start();
         }
     }
 
     public void Stop()
     {
-        lock (stateLock)
+        lock (_stateLock)
         {
-            if (!running)
+            if (!_running)
             {
                 return;
             }
 
-            running = false;
-            cancellationTokenSource?.Cancel();
-            cancellationTokenSource = null;
+            _running = false;
+            _cancellationTokenSource?.Cancel();
+            _cancellationTokenSource = null;
             
-            if (Thread.CurrentThread != workerThread)
+            if (Thread.CurrentThread != _workerThread)
             {
-                workerThread?.Join();
+                _workerThread?.Join();
             }
-            workerThread = null;
+            _workerThread = null;
         }
     }
 
     private void RunTimer(CancellationTokenSource localCancellationTokenSource)
     {
         var stopWatch = Stopwatch.StartNew();
-        var nextTriggerTicks = Interlocked.Read(ref intervalTicks);
+        var nextTriggerTicks = Interlocked.Read(ref _intervalTicks);
         var skippedIntervals = 0L;
         var lastFireTicks = 0L;
 
@@ -177,11 +177,11 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
                     break;
                 }
 
-                if (diffTicks >= QuickTickHelper.StopwatchTicksPerMillisecond * sleepThreshold)
+                if (diffTicks >= QuickTickHelper.StopwatchTicksPerMillisecond * _sleepThreshold)
                 {
                     QuickTickTiming.MinimalSleep();
                 }
-                else if (diffTicks >= QuickTickHelper.StopwatchTicksPerMillisecond * yieldThreshold)
+                else if (diffTicks >= QuickTickHelper.StopwatchTicksPerMillisecond * _yieldThreshold)
                 {
                     Thread.Yield();
                 }
@@ -205,12 +205,12 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
             var lastFireTicksLocal = lastFireTicks;
             lastFireTicks = currentTicks;
 
-            if (autoReset)
+            if (_autoReset)
             {
-                var interval = Interlocked.Read(ref intervalTicks);
+                var interval = Interlocked.Read(ref _intervalTicks);
                 nextTriggerTicks += interval;
 
-                if (skipMissedIntervals)
+                if (_skipMissedIntervals)
                 {
                     while (nextTriggerTicks < currentTicks)
                     {
@@ -235,9 +235,9 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
             var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
             var handler = Elapsed;
 
-            if (!autoReset)
+            if (!_autoReset)
             {
-                running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
+                _running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
                 localCancellationTokenSource.Cancel();
                 handler?.Invoke(this, elapsedEventArgs);
                 break;

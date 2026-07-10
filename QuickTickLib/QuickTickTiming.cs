@@ -46,6 +46,7 @@ public static class QuickTickTiming
             timer.Elapsed += (_, _) => tcs.TrySetResult(true);
             timer.Start();
             
+            // ReSharper disable once UseAwaitUsing : Can not be used since we support .NET 4.8
             using (cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken)))
             {
                 await tcs.Task;

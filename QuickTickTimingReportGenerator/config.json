@@ -4,10 +4,10 @@
   "TimeInSecondsPerTest": 10,
   "EnabledTests": {
     "QuickTickSleep": true,
-    "Internal_QuickTickSleep": false,
+    "InternalQuickTickSleep": false,
     "QuickTickTimer": true,
     "HighResQuickTickTimer": true,
-    "KGySoft_HiResTimer": true
+    "KGySoftHiResTimer": true
   },
   "WarmupIntervals": 25
 }

@@ -10,7 +10,7 @@ internal sealed class QuickTickHandleResources : IDisposable
 
     public QuickTickHandleResources()
     {
-        TimerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, Win32Interop.CreateWaitableTimerFlag_HIGH_RESOLUTION, QuickTickHelper.CreateWaitableTimerExWAccessRights);
+        TimerHandle = Win32Interop.CreateWaitableTimerExW(IntPtr.Zero, IntPtr.Zero, QuickTickHelper.CreateWaitableTimerFlagHighResolution, QuickTickHelper.CreateWaitableTimerExWAccessRights);
         if (TimerHandle.IsInvalid)
         {
             throw new InvalidOperationException($"CreateWaitableTimerExW failed: {Marshal.GetLastWin32Error()}");
