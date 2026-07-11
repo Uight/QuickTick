@@ -383,7 +383,7 @@ the way it sleeps is switched on the different operating systems.
 #### SleepThreshold
 
 ```csharp
-public double SleepThreshold { get; set }
+public double SleepThreshold { get; set; }
 ```
 
 Defines the minimum time that must be available towards the next timer iteration for the thread to sleep.
@@ -410,7 +410,7 @@ Setting SleepThreshold to int.MaxValue will basically disable sleeping the threa
 #### YieldThreshold
 
 ```csharp
-public double YieldThreshold { get; set }
+public double YieldThreshold { get; set; }
 ```
 
 Defines the minimum time that must be available towards the next timer iteration to yield the thread.
@@ -452,7 +452,7 @@ will in this situation.
 
 ##### Exceptions
 
-- `ArgumentOutOfRangeException`: Thrown if `millisecondsTimeout` less than zero.
+- `ArgumentOutOfRangeException`: Thrown if `millisecondsTimeout` is less than -1. A value of -1 stands for `Timeout.Infinite` and blocks forever, same as `Thread.Sleep(-1)`.
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
 - `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10 Build 1803.
 
@@ -470,7 +470,7 @@ Asynchronously blocks the current thread for the specified duration. It allows c
 
 ##### Exceptions
 
-- `ArgumentOutOfRangeException`: Thrown if `millisecondsDelay` or `delay` is less than zero.
+- `ArgumentOutOfRangeException`: Thrown if `millisecondsDelay` or `delay` is less than -1 millisecond. A value of -1 stands for `Timeout.Infinite` and delays forever, same as `Task.Delay(-1)`.
 - `InvalidOperationException`: Thrown if system API calls fail during initialization.
 - `TaskCanceledException`: If the cancellation token was cancelled during the delay phase.
 - `ObjectDisposedException`: The provided `cancellationToken` has already been disposed.
