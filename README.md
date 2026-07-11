@@ -189,7 +189,6 @@ Initializes a new instance of the `QuickTickTimer` class with the specified inte
 - `ArgumentOutOfRangeException`: Thrown if `interval` is outside the valid range:
     - For QuickTick: must be ≥ 0.5 milliseconds and ≤ int.MaxValue milliseconds
     - For Fallback: must be ≥ 1 millisecond and ≤ int.MaxValue milliseconds
-- `InvalidOperationException`: Thrown if system API calls fail during initialization.
 - `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10 Build 1803.
 
 #### QuickTickTimer(TimeSpan interval)
@@ -211,7 +210,6 @@ to create a timer with sub millisecond timing you would need to create the timeS
 - `ArgumentOutOfRangeException`: Thrown if `interval` is outside the valid range:
     - For QuickTick: must be ≥ 0.5 milliseconds and ≤ int.MaxValue milliseconds
     - For Fallback: must be ≥ 1 millisecond and ≤ int.MaxValue milliseconds
-- `InvalidOperationException`: Thrown if system API calls fail during initialization.
 - `PlatformNotSupportedException`: Throw if you try to run QuickTickLib under windows versions below version 10 Build 1803.
 
 ### Properties
@@ -283,11 +281,13 @@ Gets or sets whether the timer should skip missed ticks. Default is false.
 public void Start()
 ```
 
-Starts the timer.
+Starts the timer. Each start creates the resources the timer run needs (worker thread and, where the
+QuickTick implementation is used, the kernel timer); they are released again when the run ends.
 
 ##### Exceptions
 
-- `InvalidOperationException`: Thrown if system API calls fail when setting the timer.
+- `InvalidOperationException`: Thrown if creating the underlying kernel timer fails. Only applies where the QuickTick implementation is used; the fallback implementation creates no kernel objects.
+- `ObjectDisposedException`: Thrown if the timer has already been disposed. A stopped timer can be restarted, a disposed one cannot.
 
 #### Stop()
 
@@ -358,6 +358,13 @@ Implements `IDisposable`, `IQuickTickTimer`
 #### Priority
 
 This timer always starts with `ThreadPriority.Highest`.
+
+#### Start()
+
+Behaves as documented for `QuickTickTimer`, including the possible exceptions: on Windows each run caches
+one kernel timer for its sleep phase, so `Start()` can throw an `InvalidOperationException` if creating it
+fails. On platforms without waitable timers no kernel objects are created and sleeping falls back to
+`Thread.Sleep()`.
 
 #### IsQuickTickUsed
 
