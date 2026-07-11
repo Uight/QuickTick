@@ -68,18 +68,24 @@ public static class QuickTickTiming
         QuickTickSleep(sleepTimeTicks);
     }
 
-    internal static void MinimalSleep()
+    // cachedHandles can be null when the platform has no waitable timers (or a test flipped IsQuickTickSupported
+    // after the caller created its run); the caller keeps ownership and disposes them
+    internal static void MinimalSleep(QuickTickHandleResources? cachedHandles)
     {
-        if (IsQuickTickSupported)
-        {       
-            QuickTickSleep(FourHundredMicroSecondInTicks);
-        }
-        else
+        if (!IsQuickTickSupported)
         {
             Thread.Sleep(1);
         }
+        else if (cachedHandles != null)
+        {
+            QuickTickSleep(cachedHandles, FourHundredMicroSecondInTicks);
+        }
+        else
+        {
+            QuickTickSleep(FourHundredMicroSecondInTicks);
+        }
     }
-    
+
     /// <summary>
     /// The tickToSleep must be specified in <see cref="TimeSpan"/> ticks (100-nanosecond
     /// intervals), not <see cref="System.Diagnostics.Stopwatch"/> ticks, because WinAPI calls want it that way.
@@ -87,7 +93,11 @@ public static class QuickTickTiming
     internal static void QuickTickSleep(long tickToSleep)
     {
         using var handles = new QuickTickHandleResources();
+        QuickTickSleep(handles, tickToSleep);
+    }
 
+    private static void QuickTickSleep(QuickTickHandleResources handles, long tickToSleep)
+    {
         var sleepTimeTicks = -tickToSleep; // Negative means relative time
 
         if (!Win32Interop.SetWaitableTimer(handles.TimerHandle, ref sleepTimeTicks, 0, IntPtr.Zero, IntPtr.Zero, false))

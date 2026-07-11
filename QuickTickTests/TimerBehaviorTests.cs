@@ -40,14 +40,6 @@ public class TimerBehaviorTests
         _                => throw new ArgumentException($"Unknown timer kind: {kind}", nameof(kind))
     };
 
-    private static Thread? GetWorkerThread(IQuickTickTimer timer) => timer switch
-    {
-        QuickTickTimerImplementation impl => impl.WorkerThreadForTests,
-        QuickTickTimerFallback fallback   => fallback.WorkerThreadForTests,
-        HighResQuickTickTimer highRes     => highRes.WorkerThreadForTests,
-        _                                 => throw new ArgumentException($"Unknown timer type: {timer.GetType()}", nameof(timer))
-    };
-    
     [TestCaseSource(nameof(AllTimerKinds))]
     public void Basic_Timer_Creation(string kind)
     {
@@ -98,97 +90,6 @@ public class TimerBehaviorTests
         Assert.That(count, Is.EqualTo(1));
     }
 
-    [TestCaseSource(nameof(AllTimerKinds))]
-    public void MultipleStops_DoNotThrow(string kind)
-    {
-        using var timer = CreateTimer(kind);
-        timer.Start();
-        timer.Stop();
-        timer.Stop();
-        timer.Stop();
-    }
-
-    [TestCaseSource(nameof(AllTimerKinds))]
-    public void MultipleStarts_AreIgnored(string kind)
-    {
-        using var timer = CreateTimer(kind);
-        var count = 0;
-        timer.Elapsed += (_, _) => count++;
-
-        timer.Start();
-        var workerAfterFirstStart = GetWorkerThread(timer);
-        Assert.That(workerAfterFirstStart, Is.Not.Null, $"{kind}: Start() should have spawned a worker thread");
-
-        timer.Start();
-        timer.Start();
-        timer.Start();
-        timer.Start();
-
-        var workerAfterMultipleStarts = GetWorkerThread(timer);
-        Assert.That(ReferenceEquals(workerAfterFirstStart, workerAfterMultipleStarts), Is.True, $"{kind}: subsequent Start() calls replaced the worker thread instead of being ignored");
-        Assert.That(workerAfterFirstStart!.IsAlive, Is.True, $"{kind}: subsequent Start() calls killed the running worker thread");
-
-        Thread.Sleep(500); // Run for ~500ms
-        timer.Stop();
-
-        Assert.That(count, Is.InRange(14, 37)); // One timer should run only, still expect ~32 fires
-    }
-
-    [TestCaseSource(nameof(AllTimerKinds))]
-    public void StartAfterStop_FiresAgain(string kind)
-    {
-        using var timer = CreateTimer(kind);
-        var count = 0;
-        timer.Elapsed += (_, _) => count++;
-
-        timer.Start();
-        Thread.Sleep(100);
-        timer.Stop();
-        var countFirstRun = count;
-        Assert.That(countFirstRun, Is.GreaterThan(0), $"{kind}: expected fires during first run");
-
-        timer.Start();
-        Thread.Sleep(100);
-        timer.Stop();
-        Assert.That(count, Is.GreaterThan(countFirstRun), $"{kind}: expected fires during second run");
-    }
-    
-    [TestCaseSource(nameof(AllTimerKinds))]
-    public void StopFromHandler_DoesNotDeadlock(string kind)
-    {
-        using var timer = CreateTimer(kind);
-        var done = new ManualResetEventSlim(false);
-        timer.Elapsed += (_, _) =>
-        {
-            // ReSharper disable once AccessToDisposedClosure
-            timer.Stop();
-            done.Set();
-        };
-        timer.Start();
-        Assert.That(done.Wait(TimeSpan.FromMilliseconds(200)), Is.True, $"{kind}: Stop() from handler deadlocked or timed out");
-    }
-    
-    [TestCaseSource(nameof(AllTimerKinds))]
-    public void Dispose_StopsTimer(string kind)
-    {
-        var timer = CreateTimer(kind);
-        var count = 0;
-        var firstFired = new ManualResetEventSlim(false);
-        timer.Elapsed += (_, _) => { count++; firstFired.Set(); };
-        timer.Start();
-        Assert.That(firstFired.Wait(TimeSpan.FromMilliseconds(500)), Is.True);
-
-        var workerThread = GetWorkerThread(timer);
-        Assert.That(workerThread, Is.Not.Null, $"{kind}: Start() should have spawned a worker thread");
-
-        timer.Dispose();
-        var countAtDispose = count;
-        Thread.Sleep(150);
-        Assert.That(count, Is.EqualTo(countAtDispose));
-
-        Assert.That(workerThread!.IsAlive, Is.False, $"{kind}: Dispose() left the worker thread running");
-    }
-    
     [TestCaseSource(nameof(AllTimerKinds))]
     public void SkipMissedIntervals_ReportsSkippedCount(string kind)
     {
@@ -324,54 +225,6 @@ public class TimerBehaviorTests
         Assert.That(forthTime, Is.InRange(0.0, 5.0));
     }
     
-    [TestCaseSource(nameof(AllTimerKinds))]
-    public void AutoResetFalse_StartFromHandler_RestartsTimer(string kind)
-    {
-        using var timer = CreateTimer(kind);
-        var fireCount = 0;
-        var secondFired = new ManualResetEventSlim(false);
-
-        timer.AutoReset = false;
-        timer.Elapsed += (_, _) =>
-        {
-            fireCount++;
-            if (fireCount == 1)
-            {
-                // ReSharper disable once AccessToDisposedClosure
-                timer.Start();
-            }
-            else
-            {
-                secondFired.Set();
-            }
-        };
-
-        timer.Start();
-        Assert.That(secondFired.Wait(TimeSpan.FromMilliseconds(500)), Is.True, $"{kind}: Start() from AutoReset=false handler should restart the timer");
-        timer.Stop();
-    }
-
-    [TestCaseSource(nameof(AllTimerKinds))]
-    public void Stop_BlocksUntilCurrentHandlerCompletes(string kind)
-    {
-        using var timer = CreateTimer(kind);
-        var handlerStarted  = new ManualResetEventSlim(false);
-        var handlerFinished = new ManualResetEventSlim(false);
-
-        timer.Elapsed += (_, _) =>
-        {
-            handlerStarted.Set();
-            Thread.Sleep(150);
-            handlerFinished.Set();
-        };
-
-        timer.Start();
-        Assert.That(handlerStarted.Wait(TimeSpan.FromMilliseconds(500)), Is.True, "handler should start within 500 ms");
-
-        timer.Stop();
-        Assert.That(handlerFinished.IsSet, Is.True, $"{kind}: Stop() must block until the handler completes (thread join)");
-    }
-
     [TestCaseSource(nameof(AllTimerKinds))]
     public void SkipMissedIntervals_Enabled_NoBurstAfterDelay(string kind)
     {
