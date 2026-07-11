@@ -305,7 +305,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     {
         if (Volatile.Read(ref _disposedState) == 1)
         {
-            throw new ObjectDisposedException(GetType().Name);
+            throw new ObjectDisposedException(nameof(HighResQuickTickTimer));
         }
     }
 }

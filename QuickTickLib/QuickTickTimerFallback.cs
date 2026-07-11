@@ -233,7 +233,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
     {
         if (Volatile.Read(ref _disposedState) == 1)
         {
-            throw new ObjectDisposedException(GetType().Name);
+            throw new ObjectDisposedException(nameof(QuickTickTimerFallback));
         }
     }
 }
