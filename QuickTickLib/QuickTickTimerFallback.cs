@@ -16,6 +16,7 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
     private ThreadPriority _threadPriority = ThreadPriority.Normal;
     private CancellationTokenSource? _cancellationTokenSource;
     private Thread? _workerThread;
+    private Thread? _retiringThread;
     private readonly object _stateLock = new();
 
     internal Thread? WorkerThreadForTests => _workerThread;
@@ -64,6 +65,8 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
     {
         lock (_stateLock)
         {
+            ThrowIfDisposed();
+
             if (_running)
             {
                 return;
@@ -89,32 +92,64 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
 
     public void Stop()
     {
+        Thread? threadToJoin;
+
         lock (_stateLock)
         {
-            if (!_running)
+            if (_running)
             {
-                return;
+                _running = false;
+                // Cancelled but deliberately not disposed: a plain CancellationTokenSource (no CancelAfter(), no
+                // WaitHandle access) creates no unmanaged resources, so the GC reclaims it on its own
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource = null;
+                _timer.Stop();
+                _eventQueue?.CompleteAdding();
+
+                if (Thread.CurrentThread == _workerThread)
+                {
+                    // Called from the Elapsed handler: the worker exits on its own after the handler returns
+                    _workerThread = null;
+                    return;
+                }
+
+                _retiringThread = _workerThread;
+                _workerThread = null;
             }
 
-            _running = false;
-            _cancellationTokenSource?.Cancel();
-            _cancellationTokenSource = null;
-            _timer.Stop();
-            _eventQueue?.CompleteAdding();
+            threadToJoin = _retiringThread;
+        }
 
-            if (Thread.CurrentThread != _workerThread)
+        if (threadToJoin != null && threadToJoin != Thread.CurrentThread)
+        {
+            // Join outside the lock: an Elapsed handler calling Stop()/Dispose() concurrently blocks on the
+            // state lock, so joining while holding it would deadlock against the very thread being joined
+            threadToJoin.Join();
+
+            lock (_stateLock)
             {
-                _workerThread?.Join();
+                if (_retiringThread == threadToJoin)
+                {
+                    _retiringThread = null;
+                }
             }
-            _workerThread = null;
         }
     }
 
     // Internal for tests: called directly to simulate the timer callback racing Stop() without System.Timers.Timer swallowing exceptions
     internal void OnElapsedInternal(object? sender, ElapsedEventArgs e)
     {
-        // Use tryAdd because the timer could still fire after Stop() which would cause exception because Stop() also call CompleteAdding() on the queue
-        _eventQueue?.TryAdd(true);
+        try
+        {
+            // The timer can still fire after Stop(): once Stop() called CompleteAdding() this TryAdd throws
+            // InvalidOperationException (it does NOT return false). A pre-check on IsAddingCompleted would still
+            // race with Stop(), so the exception is caught instead.
+            _eventQueue?.TryAdd(true);
+        }
+        catch (InvalidOperationException)
+        {
+            // Late callback after Stop(); nothing to do
+        }
     }
 
     private void Run(CancellationTokenSource localCancellationTokenSource, BlockingCollection<bool> localEventQueue)
@@ -191,6 +226,14 @@ internal sealed class QuickTickTimerFallback : IQuickTickTimer
         {
             _timer.Dispose();
             Elapsed = null;
+        }
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (Volatile.Read(ref _disposedState) == 1)
+        {
+            throw new ObjectDisposedException(GetType().Name);
         }
     }
 }

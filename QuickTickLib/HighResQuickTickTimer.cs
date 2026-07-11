@@ -14,11 +14,12 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     private volatile float _yieldThreshold = 0.75f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
     private long _intervalTicks;
     private ThreadPriority _threadPriority = ThreadPriority.Highest;
-    private CancellationTokenSource? _cancellationTokenSource;
-    private Thread? _workerThread;
+    private HighResQuickTickTimerRun? _currentRun;
+    private Thread? _retiringThread;
+    private int _disposedState;
     private readonly object _stateLock = new();
 
-    internal Thread? WorkerThreadForTests => _workerThread;
+    internal Thread? WorkerThreadForTests => _currentRun?.Thread;
 
     public double Interval
     {
@@ -53,9 +54,9 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
         set
         {
             _threadPriority = value;
-            if (_workerThread is { IsAlive: true })
+            if (_currentRun?.Thread is { IsAlive: true } workerThread)
             {
-                _workerThread.Priority = value;
+                workerThread.Priority = value;
             }
         }
     }
@@ -119,137 +120,192 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     {
         lock (_stateLock)
         {
+            ThrowIfDisposed();
+
             if (_running)
             {
                 return;
             }
 
-            _running = true;
-            var cts = new CancellationTokenSource();
-
-            _workerThread = new Thread(() => RunTimer(cts))
+            // Construct the run before setting any state so a failing handle creation leaves the timer stopped
+            var run = new HighResQuickTickTimerRun();
+            run.Thread = new Thread(() => RunTimer(run))
             {
                 IsBackground = true,
                 Priority = Priority,
                 Name = "QuickTick Timer"
             };
 
-            _cancellationTokenSource = cts;
-            _workerThread.Start();
+            _currentRun = run;
+            _running = true;
+            run.Thread.Start();
         }
     }
 
     public void Stop()
     {
+        Thread? threadToJoin;
+
         lock (_stateLock)
         {
-            if (!_running)
+            if (_running)
             {
-                return;
+                _running = false;
+
+                var run = _currentRun!; // While _running is true a current run always exists
+                run.CancellationTokenSource.Cancel();
+                _currentRun = null;
+
+                if (Thread.CurrentThread == run.Thread)
+                {
+                    // Called from the Elapsed handler: the worker exits and disposes its run on its own after the handler returns
+                    return;
+                }
+
+                _retiringThread = run.Thread;
             }
 
-            _running = false;
-            _cancellationTokenSource?.Cancel();
-            _cancellationTokenSource = null;
-            
-            if (Thread.CurrentThread != _workerThread)
+            threadToJoin = _retiringThread;
+        }
+
+        if (threadToJoin != null && threadToJoin != Thread.CurrentThread)
+        {
+            // Join outside the lock: an Elapsed handler calling Stop()/Dispose() concurrently blocks on the
+            // state lock, so joining while holding it would deadlock against the very thread being joined
+            threadToJoin.Join();
+
+            lock (_stateLock)
             {
-                _workerThread?.Join();
+                if (_retiringThread == threadToJoin)
+                {
+                    _retiringThread = null;
+                }
             }
-            _workerThread = null;
         }
     }
 
-    private void RunTimer(CancellationTokenSource localCancellationTokenSource)
+    private void RunTimer(HighResQuickTickTimerRun run)
     {
-        var stopWatch = Stopwatch.StartNew();
-        var nextTriggerTicks = Interlocked.Read(ref _intervalTicks);
-        var skippedIntervals = 0L;
-        var lastFireTicks = 0L;
-
-        while (!localCancellationTokenSource.IsCancellationRequested)
+        try
         {
-            while (true)
+            var stopWatch = Stopwatch.StartNew();
+            var nextTriggerTicks = Interlocked.Read(ref _intervalTicks);
+            var skippedIntervals = 0L;
+            var lastFireTicks = 0L;
+
+            while (!run.CancellationTokenSource.IsCancellationRequested)
             {
-                var diffTicks = nextTriggerTicks - stopWatch.ElapsedTicks;
-                if (diffTicks <= 0)
+                while (true)
                 {
-                    break;
-                }
-
-                if (diffTicks >= QuickTickHelper.StopwatchTicksPerMillisecond * _sleepThreshold)
-                {
-                    QuickTickTiming.MinimalSleep();
-                }
-                else if (diffTicks >= QuickTickHelper.StopwatchTicksPerMillisecond * _yieldThreshold)
-                {
-                    Thread.Yield();
-                }
-                else
-                {
-                    Thread.SpinWait(10);
-                }
-
-                if (localCancellationTokenSource.IsCancellationRequested)
-                {
-                    break;
-                }
-            }
-
-            if (localCancellationTokenSource.IsCancellationRequested)
-            {
-                break;
-            }
-
-            var currentTicks = stopWatch.ElapsedTicks;
-            var lastFireTicksLocal = lastFireTicks;
-            lastFireTicks = currentTicks;
-
-            if (_autoReset)
-            {
-                var interval = Interlocked.Read(ref _intervalTicks);
-                nextTriggerTicks += interval;
-
-                if (_skipMissedIntervals)
-                {
-                    while (nextTriggerTicks < currentTicks)
+                    var diffTicks = nextTriggerTicks - stopWatch.ElapsedTicks;
+                    if (diffTicks <= 0)
                     {
-                        nextTriggerTicks += interval;
-                        if (skippedIntervals < long.MaxValue)
-                        {
-                            skippedIntervals++;
-                        }
+                        break;
+                    }
+
+                    if (diffTicks >= QuickTickHelper.StopwatchTicksPerMillisecond * _sleepThreshold)
+                    {
+                        QuickTickTiming.MinimalSleep(run.Handles);
+                    }
+                    else if (diffTicks >= QuickTickHelper.StopwatchTicksPerMillisecond * _yieldThreshold)
+                    {
+                        Thread.Yield();
+                    }
+                    else
+                    {
+                        Thread.SpinWait(10);
+                    }
+
+                    if (run.CancellationTokenSource.IsCancellationRequested)
+                    {
+                        break;
                     }
                 }
 
-                if (stopWatch.Elapsed.TotalHours >= 1)
+                if (run.CancellationTokenSource.IsCancellationRequested)
                 {
-                    var remaining = nextTriggerTicks - currentTicks;
-                    stopWatch.Restart();
-                    nextTriggerTicks = remaining;
-                    lastFireTicks = 0L;
+                    break;
+                }
+
+                var currentTicks = stopWatch.ElapsedTicks;
+                var lastFireTicksLocal = lastFireTicks;
+                lastFireTicks = currentTicks;
+
+                if (_autoReset)
+                {
+                    var interval = Interlocked.Read(ref _intervalTicks);
+                    nextTriggerTicks += interval;
+
+                    if (_skipMissedIntervals)
+                    {
+                        while (nextTriggerTicks < currentTicks)
+                        {
+                            nextTriggerTicks += interval;
+                            if (skippedIntervals < long.MaxValue)
+                            {
+                                skippedIntervals++;
+                            }
+                        }
+                    }
+
+                    if (stopWatch.Elapsed.TotalHours >= 1)
+                    {
+                        var remaining = nextTriggerTicks - currentTicks;
+                        stopWatch.Restart();
+                        nextTriggerTicks = remaining;
+                        lastFireTicks = 0L;
+                    }
+                }
+
+                var timeSinceLastFire = TimeSpan.FromTicks(QuickTickHelper.StopwatchTicksToTimeSpanTicks(currentTicks - lastFireTicksLocal));
+                var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
+                var handler = Elapsed;
+
+                if (!_autoReset)
+                {
+                    _running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
+                    run.CancellationTokenSource.Cancel();
+                    handler?.Invoke(this, elapsedEventArgs);
+                    break;
+                }
+
+                handler?.Invoke(this, elapsedEventArgs);
+            }
+        }
+        finally
+        {
+            lock (_stateLock)
+            {
+                // Unlink if the run ended on its own (AutoReset = false or a throwing handler); Stop() unlinks otherwise
+                if (_currentRun == run)
+                {
+                    _currentRun = null;
+                    _running = false;
                 }
             }
 
-            var timeSinceLastFire = TimeSpan.FromTicks(QuickTickHelper.StopwatchTicksToTimeSpanTicks(currentTicks - lastFireTicksLocal));
-            var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
-            var handler = Elapsed;
-
-            if (!_autoReset)
-            {
-                _running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
-                localCancellationTokenSource.Cancel();
-                handler?.Invoke(this, elapsedEventArgs);
-                break;
-            }
-
-            handler?.Invoke(this, elapsedEventArgs);
+            // Outside the lock on purpose: once the run is unlinked Stop() can no longer reach these objects,
+            // so disposing them cannot race the Cancel() call that only targets the current run
+            run.Dispose();
         }
     }
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposedState, 1) == 1)
+        {
+            return;
+        }
+
         Stop();
         Elapsed = null;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (Volatile.Read(ref _disposedState) == 1)
+        {
+            throw new ObjectDisposedException(GetType().Name);
+        }
     }
 }

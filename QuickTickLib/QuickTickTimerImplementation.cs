@@ -7,8 +7,6 @@ namespace QuickTickLib;
 
 internal sealed class QuickTickTimerImplementation : IQuickTickTimer
 {
-    private readonly QuickTickHandleResources _handles;
-
     private volatile bool _autoReset;
     private volatile bool _skipMissedIntervals;
     private volatile bool _running;
@@ -18,12 +16,11 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
     private int _disposedState;
     private readonly object _stateLock = new();
 
-    private CancellationTokenSource? _cancellationTokenSource;
-    private ManualResetEvent? _stopEvent;
-    private Thread? _workerThread;
+    private QuickTickTimerRun? _currentRun;
+    private Thread? _retiringThread;
     private ThreadPriority _threadPriority = ThreadPriority.Normal;
 
-    internal Thread? WorkerThreadForTests => _workerThread;
+    internal Thread? WorkerThreadForTests => _currentRun?.Thread;
 
     public event QuickTickElapsedEventHandler? Elapsed;
 
@@ -60,9 +57,9 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
         set
         {
             _threadPriority = value;
-            if (_workerThread is { IsAlive: true })
+            if (_currentRun?.Thread is { IsAlive: true } workerThread)
             {
-                _workerThread.Priority = value;
+                workerThread.Priority = value;
             }
         }
     }
@@ -71,147 +68,177 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
     {
         AutoReset = true;
         Interval = interval;
-        _handles = new QuickTickHandleResources();
     }
 
     public void Start()
     {
         lock (_stateLock)
         {
+            ThrowIfDisposed();
+
             if (_running)
             {
                 return;
             }
 
-            _running = true;
-            var cts = new CancellationTokenSource();
-
-            // A leftover event exists when the previous run ended itself (AutoReset = false); its exited thread never waits on it again
-            _stopEvent?.Dispose();
-            var localStopEvent = new ManualResetEvent(false);
-
-            _workerThread = new Thread(() => WorkerThreadLoop(cts, localStopEvent))
+            // Construct the run before setting any state so a failing handle creation leaves the timer stopped
+            var run = new QuickTickTimerRun();
+            run.Thread = new Thread(() => WorkerThreadLoop(run))
             {
                 IsBackground = true,
                 Priority = Priority,
                 Name = "QuickTick Timer"
             };
 
-            _cancellationTokenSource = cts;
-            _stopEvent = localStopEvent;
-            _workerThread.Start();
+            _currentRun = run;
+            _running = true;
+            run.Thread.Start();
         }
     }
 
     public void Stop()
     {
+        Thread? threadToJoin;
+
         lock (_stateLock)
         {
-            if (!_running)
+            if (_running)
             {
-                return;
+                _running = false;
+
+                var run = _currentRun!; // While _running is true a current run always exists
+                run.CancellationTokenSource.Cancel();
+                run.StopEvent.Set(); // Wake the worker thread out of its wait
+                _currentRun = null;
+
+                if (Thread.CurrentThread == run.Thread)
+                {
+                    // Called from the Elapsed handler: the worker exits and disposes its run on its own after the handler returns
+                    return;
+                }
+
+                _retiringThread = run.Thread;
             }
 
-            _running = false;
-            _cancellationTokenSource?.Cancel();
-            _cancellationTokenSource = null;
+            threadToJoin = _retiringThread;
+        }
 
-            Win32Interop.CancelWaitableTimer(_handles.TimerHandle);
+        if (threadToJoin != null && threadToJoin != Thread.CurrentThread)
+        {
+            // Join outside the lock: an Elapsed handler calling Stop()/Dispose() concurrently blocks on the
+            // state lock, so joining while holding it would deadlock against the very thread being joined
+            threadToJoin.Join();
 
-            if (Thread.CurrentThread != _workerThread)
+            lock (_stateLock)
             {
-                // Wake the worker thread out of its wait
-                // If called from the same thread we know we are called from the event handler code therefore we are not waiting on the timer and don't need to signal
-                _stopEvent?.Set();
-
-                _workerThread?.Join();
+                if (_retiringThread == threadToJoin)
+                {
+                    _retiringThread = null;
+                }
             }
-            _workerThread = null;
-
-            // Safe even in the self-stop case: after the handler returns the worker thread only checks the cancellation token and exits, it never waits again
-            _stopEvent?.Dispose();
-            _stopEvent = null;
         }
     }
 
-    private void WorkerThreadLoop(CancellationTokenSource localCancellationTokenSource, ManualResetEvent localStopEvent)
+    private void WorkerThreadLoop(QuickTickTimerRun run)
     {
-        // The timer is a synchronization (auto-reset) timer: a satisfied wait resets it and SetWaitableTimer resets any pending signal on re-arm,
-        // so no stale signal can leak across Stop/Start cycles
-        var waitHandles = new[] { _handles.TimerWaitHandle, localStopEvent };
-
-        var stopWatch = Stopwatch.StartNew();
-        var nextFireTicks = Interlocked.Read(ref _intervalTicks);
-        var lastFireTicks = 0L;
-        var skippedIntervals = 0L;
-
-        SetTimer(stopWatch, nextFireTicks);
-
-        while (!localCancellationTokenSource.IsCancellationRequested)
+        try
         {
-            var signaledIndex = WaitHandle.WaitAny(waitHandles);
+            // The timer is a synchronization (auto-reset) timer owned exclusively by this run: a satisfied wait
+            // resets it, so every SetTimer/WaitAny pair consumes exactly one signal and no other run can interfere
+            var waitHandles = new[] { run.Handles.TimerWaitHandle, run.StopEvent };
 
-            if (localCancellationTokenSource.IsCancellationRequested || signaledIndex != 0)
+            var stopWatch = Stopwatch.StartNew();
+            var nextFireTicks = Interlocked.Read(ref _intervalTicks);
+            var lastFireTicks = 0L;
+            var skippedIntervals = 0L;
+
+            SetTimer(run, stopWatch, nextFireTicks);
+
+            while (!run.CancellationTokenSource.IsCancellationRequested)
             {
-                break;
-            }
+                var signaledIndex = WaitHandle.WaitAny(waitHandles);
 
-            var currentTicks = stopWatch.ElapsedTicks;
-            var lastFireTicksLocal = lastFireTicks;
-            lastFireTicks = currentTicks;
-
-            if (_autoReset)
-            {
-                var interval = Interlocked.Read(ref _intervalTicks);
-                nextFireTicks += interval;
-
-                if (_skipMissedIntervals)
+                if (run.CancellationTokenSource.IsCancellationRequested || signaledIndex != 0)
                 {
-                    while (nextFireTicks < currentTicks)
+                    break;
+                }
+
+                var currentTicks = stopWatch.ElapsedTicks;
+                var lastFireTicksLocal = lastFireTicks;
+                lastFireTicks = currentTicks;
+
+                if (_autoReset)
+                {
+                    var interval = Interlocked.Read(ref _intervalTicks);
+                    nextFireTicks += interval;
+
+                    if (_skipMissedIntervals)
                     {
-                        nextFireTicks += interval;
-                        if (skippedIntervals < long.MaxValue)
+                        while (nextFireTicks < currentTicks)
                         {
-                            skippedIntervals++;
+                            nextFireTicks += interval;
+                            if (skippedIntervals < long.MaxValue)
+                            {
+                                skippedIntervals++;
+                            }
                         }
                     }
+
+                    if (stopWatch.Elapsed.TotalHours >= 1)
+                    {
+                        var remaining = nextFireTicks - currentTicks;
+                        stopWatch.Restart();
+                        nextFireTicks = remaining;
+                        lastFireTicks = 0;
+                    }
+
+                    SetTimer(run, stopWatch, nextFireTicks);
                 }
 
-                if (stopWatch.Elapsed.TotalHours >= 1)
+                var timeSinceLastFire = TimeSpan.FromTicks(QuickTickHelper.StopwatchTicksToTimeSpanTicks(currentTicks - lastFireTicksLocal));
+                var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
+                var handler = Elapsed;
+
+                if (!_autoReset)
                 {
-                    var remaining = nextFireTicks - currentTicks;
-                    stopWatch.Restart();
-                    nextFireTicks = remaining;
-                    lastFireTicks = 0;
+                    _running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
+                    run.CancellationTokenSource.Cancel();
+                    handler?.Invoke(this, elapsedEventArgs);
+                    break;
                 }
 
-                SetTimer(stopWatch, nextFireTicks);
-            }
-
-            var timeSinceLastFire = TimeSpan.FromTicks(QuickTickHelper.StopwatchTicksToTimeSpanTicks(currentTicks - lastFireTicksLocal));
-            var elapsedEventArgs = new QuickTickElapsedEventArgs(timeSinceLastFire, skippedIntervals);
-            var handler = Elapsed;
-
-            if (!_autoReset)
-            {
-                _running = false; // Same logic as System.Timers.Timer: set running=false before invoking the handler when AutoReset is disabled
-                localCancellationTokenSource.Cancel();
                 handler?.Invoke(this, elapsedEventArgs);
-                break;
+            }
+        }
+        finally
+        {
+            lock (_stateLock)
+            {
+                // Unlink if the run ended on its own (AutoReset = false or a throwing handler); Stop() unlinks otherwise
+                if (_currentRun == run)
+                {
+                    _currentRun = null;
+                    _running = false;
+                }
             }
 
-            handler?.Invoke(this, elapsedEventArgs);
+            // Outside the lock on purpose: once the run is unlinked Stop() can no longer reach these objects,
+            // so disposing them cannot race the Cancel()/Set() calls that only target the current run
+            run.Dispose();
         }
     }
 
-    private void SetTimer(Stopwatch stopWatch, long nextFireTicks)
+    private static void SetTimer(QuickTickTimerRun run, Stopwatch stopWatch, long nextFireTicks)
     {
         long dueTimeStopwatchTicks = nextFireTicks - stopWatch.ElapsedTicks;
         long dueTime = dueTimeStopwatchTicks < 0 ? 0 : QuickTickHelper.StopwatchTicksToTimeSpanTicks(dueTimeStopwatchTicks);
         dueTime = -dueTime; // Negative = relative time for SetWaitableTimer, which expects 100ns units
 
-        if (!Win32Interop.SetWaitableTimer(_handles.TimerHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false)) // Setting the period to 0 makes the timer fire exactly once
+        if (!Win32Interop.SetWaitableTimer(run.Handles.TimerHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false)) // Setting the period to 0 makes the timer fire exactly once
         {
+            // With the Start()-after-Dispose guard in place this cannot realistically fail (valid handle, valid arguments).
+            // If it ever does, the exception propagates on the worker thread where user code cannot catch it — deliberate,
+            // matching the documented behavior of exceptions thrown from Elapsed handlers.
             throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
         }
     }
@@ -223,14 +250,16 @@ internal sealed class QuickTickTimerImplementation : IQuickTickTimer
             return;
         }
 
-        try
+        // All kernel resources are owned by the runs and disposed by their worker threads; there is nothing else to release
+        Stop();
+        Elapsed = null;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (Volatile.Read(ref _disposedState) == 1)
         {
-            Stop();
-        }
-        finally
-        {
-            _handles.Dispose();
-            Elapsed = null;
+            throw new ObjectDisposedException(GetType().Name);
         }
     }
 }
