@@ -368,20 +368,20 @@ public static class Program
             if (bins[i] > 0)
             {
                 string countText = bins[i].ToString();
-                canvas.DrawText(countText, x + barWidth / 2 - 10, y - 4, font, textPaint);
+                canvas.DrawText(countText, x + barWidth / 2 - 10, y - 4, SKTextAlign.Left, font, textPaint);
             }
 
             if (i % labelSkip == 0)
             {
                 string label = $"{(min + i * binSize):0.00}";
-                canvas.DrawText(label, x, height - marginBottom + 18, font, textPaint);
+                canvas.DrawText(label, x, height - marginBottom + 18, SKTextAlign.Left, font, textPaint);
             }
         }
 
         // Bin width label
-        canvas.DrawText($"Bin width: {binSize:0.000} ms", marginLeft, marginTop - 5, font, textPaint);
-        canvas.DrawText("Count", 10, marginTop + 10, font, textPaint);
-        canvas.DrawText("Time (ms)", (int)Math.Round(width / 2.0) - 40, height - 5, font, textPaint);
+        canvas.DrawText($"Bin width: {binSize:0.000} ms", marginLeft, marginTop - 5, SKTextAlign.Left, font, textPaint);
+        canvas.DrawText("Count", 10, marginTop + 10, SKTextAlign.Left, font, textPaint);
+        canvas.DrawText("Time (ms)", (int)Math.Round(width / 2.0) - 40, height - 5, SKTextAlign.Left, font, textPaint);
 
         // --- Draw target line ---
         if (targetMs >= min && targetMs <= max)
@@ -407,7 +407,7 @@ public static class Program
             }
         }
 
-        SKPath path = new SKPath();
+        SKPathBuilder pathBuilder = new SKPathBuilder();
         bool first = true;
 
         for (int i = 0; i <= gaussSteps; i++)
@@ -417,15 +417,16 @@ public static class Program
             float x = marginLeft + (float)((t - min) / (max - min) * plotWidth);
             float y = height - marginBottom - (float)(gNorm * plotHeight);
 
-            if (first) { path.MoveTo(x, y); first = false; }
-            else path.LineTo(x, y);
+            if (first) { pathBuilder.MoveTo(x, y); first = false; }
+            else pathBuilder.LineTo(x, y);
         }
 
+        using SKPath path = pathBuilder.Detach();
         canvas.DrawPath(path, gaussianPaint);
 
         // --- Draw average CPU usage legend ---
         string legend = $"Avg CPU: {avgCpuUsage:F2}%";
-        canvas.DrawText(legend, width - 200, marginTop + 10, font, textPaint);
+        canvas.DrawText(legend, width - 200, marginTop + 10, SKTextAlign.Left, font, textPaint);
 
         // Save image
         using var image = SKImage.FromBitmap(bitmap);
