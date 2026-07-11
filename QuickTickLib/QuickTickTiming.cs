@@ -8,6 +8,9 @@ public static class QuickTickTiming
     // QuickTickSleep expects 100ns (TimeSpan) ticks, same as its other caller Sleep(), so this must be derived from TimeSpan.TicksPerMillisecond
     private const long FourHundredMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.4);
 
+    // clock_nanosleep overshoots by only tens of microseconds, so its chunk can be shorter than the Windows one
+    private const long TwoHundredFiftyMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.25);
+
     // Settable in tests (InternalsVisibleTo("QuickTickTests")) to exercise the Thread.Sleep/Task.Delay fallback path
     internal static bool IsQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
 
@@ -88,7 +91,7 @@ public static class QuickTickTiming
         }
         else if (IsClockNanosleepSupported)
         {
-            LinuxInterop.PreciseSleep(FourHundredMicroSecondInTicks);
+            LinuxInterop.PreciseSleep(TwoHundredFiftyMicroSecondInTicks);
         }
         else
         {

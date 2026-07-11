@@ -333,10 +333,10 @@ The timer provides the same interface as the normal QuickTickTimer but functions
 and according to the remaining time to the next interval either sleeps, yields the thread or spin waits. It therefore needs more CPU than the regular timer, but
 also has a higher precision in the timing events.
 
-While more than twice the `SleepThreshold` (plus one millisecond) remains until the next interval, the timer sleeps that whole span in a single interruptible block
-instead of many small sleeps: on Windows one shot of the run's cached high-resolution kernel timer, elsewhere a timed wait on the stop event. It wakes two
-`SleepThreshold`s before the deadline and hands over to the usual sleep/yield/spin phases for the precise part, so long intervals no longer cost hundreds of
-wakeups while the timing behavior near the deadline stays unchanged.
+While far enough from the next interval, the timer sleeps most of the remaining span in a single interruptible block instead of many small sleeps: on Windows one
+shot of the run's cached high-resolution kernel timer, elsewhere a timed wait on the stop event. It wakes twice the `SleepThreshold` before the deadline (but never
+closer than a platform-specific margin covering the long sleep's own wake-up overshoot) and hands over to the usual sleep/yield/spin phases for the precise part,
+so long intervals no longer cost hundreds of wakeups while the timing behavior near the deadline stays unchanged.
 
 This timer fully **supports sub-millisecond intervals on all systems**, as it does not rely on the `System.Timers.Timer` implementation.
 
@@ -384,18 +384,19 @@ public double SleepThreshold { get; set }
 
 Defines the minimum time that must be available towards the next timer iteration for the thread to sleep.
 The default depends on the sleep mechanism the platform provides: 1.5 ms on Windows (high-resolution waitable timers),
-1.0 ms on Linux (`clock_nanosleep`) and 15 ms where only `Thread.Sleep()` is available (e.g. macOS).
+0.5 ms on Linux (`clock_nanosleep`) and 15 ms where only `Thread.Sleep()` is available (e.g. macOS).
 Increasing this time can lead to better timing but increases CPU usage as the code will Yield or SpinWait instead.
-Must be at least 1.0 and at most int.MaxValue.
+Must be at least 0.5 and at most int.MaxValue. Values below 1.0 only make sense where the minimal sleep is precise
+(Windows, Linux); on the `Thread.Sleep()` fallback they cause late ticks.
 YieldThreshold must always be less than or equal to SleepThreshold.
 Setting SleepThreshold to int.MaxValue will basically disable sleeping the thread and the timer will Yield or SpinWait the thread instead.
 
 > [!Note]
 > If a sleep is to be performed a function called `MinimalSleep` is called. This sleeps for 400 µs using a special `QuickTickTiming.QuickTickSleep()`
-> function under windows, for 400 µs using `clock_nanosleep` on the monotonic clock under linux, and for 1 ms using `Thread.Sleep()` everywhere else.
+> function under windows, for 250 µs using `clock_nanosleep` on the monotonic clock under linux, and for 1 ms using `Thread.Sleep()` everywhere else.
 > Windows testing showed the actual sleep time stays under 1.5 ms in over 99% of all cases which is why 1.5 ms is the default sleep threshold there;
 > an even safer value is 2.0 ms as in testing all minimal sleep timings stayed under 2.0 ms. `clock_nanosleep` typically overshoots by only tens of
-> microseconds which is why linux defaults to a smaller threshold of 1.0 ms.
+> microseconds which is why linux defaults to a smaller threshold of 0.5 ms (with 0.3 ms as the yield threshold).
 > For systems like macOS where the accuracy of `Thread.Sleep()` is way worse than under linux the `SleepThreshold` defaults to 15 ms,
 > although it should be remembered, that this will basically use a full core while spinning towards the deadline.
 

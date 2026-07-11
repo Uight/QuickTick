@@ -8,6 +8,12 @@ internal static class HighResTimerDefaults
     internal static readonly float SleepThreshold;
     internal static readonly float YieldThreshold;
 
+    // Minimum time before the deadline at which the long sleep-until-near-deadline block must wake, as a floor
+    // under 2 x SleepThreshold. The long sleep mechanism is not the chunk sleep mechanism: where there is no
+    // kernel timer the long block is a timed event wait with Thread.Sleep-like overshoot, so with sub-millisecond
+    // thresholds 2 x SleepThreshold alone would be thinner than that overshoot and ticks would fire late.
+    internal static readonly float LongSleepWakeMarginMs;
+
     static HighResTimerDefaults()
     {
         if (QuickTickTiming.IsQuickTickSupported)
@@ -16,13 +22,14 @@ internal static class HighResTimerDefaults
             // under 1.5 ms in over 99% of all cases (with appropriate power settings)
             SleepThreshold = 1.5f;
             YieldThreshold = 0.75f;
+            LongSleepWakeMarginMs = 0f; // The long sleep uses the same high-resolution kernel timer, 2 x SleepThreshold covers it
         }
         else if (QuickTickTiming.IsClockNanosleepSupported)
         {
-            // clock_nanosleep typically overshoots by only tens of microseconds on default kernels;
-            // provisional values until validated with TimingReportGenerator runs on Linux
-            SleepThreshold = 1.0f;
-            YieldThreshold = 0.5f;
+            // From Linux testing with the 250 µs clock_nanosleep chunk; provisional until validated with TimingReportGenerator runs
+            SleepThreshold = 0.5f;
+            YieldThreshold = 0.3f;
+            LongSleepWakeMarginMs = 3f; // Timed event waits stayed under 2 ms in Linux testing; 3 ms keeps a full millisecond of slack
         }
         else
         {
@@ -30,6 +37,7 @@ internal static class HighResTimerDefaults
             // from the deadline; 15 ms matches the guidance the README previously gave for manual tuning
             SleepThreshold = 15f;
             YieldThreshold = 0.75f;
+            LongSleepWakeMarginMs = 15f; // Same overshoot class as the sleep itself
         }
     }
 }
