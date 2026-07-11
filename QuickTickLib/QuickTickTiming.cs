@@ -8,8 +8,14 @@ public static class QuickTickTiming
     // QuickTickSleep expects 100ns (TimeSpan) ticks, same as its other caller Sleep(), so this must be derived from TimeSpan.TicksPerMillisecond
     private const long FourHundredMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.4);
 
+    // clock_nanosleep overshoots by only tens of microseconds, so its chunk can be shorter than the Windows one
+    private const long TwoHundredFiftyMicroSecondInTicks = (long)(TimeSpan.TicksPerMillisecond * 0.25);
+
     // Settable in tests (InternalsVisibleTo("QuickTickTests")) to exercise the Thread.Sleep/Task.Delay fallback path
     internal static bool IsQuickTickSupported = QuickTickHelper.PlatformSupportsQuickTick();
+
+    // Settable in tests (InternalsVisibleTo("QuickTickTests")) to exercise the Thread.Sleep fallback tier
+    internal static bool IsClockNanosleepSupported = LinuxInterop.PlatformSupportsPreciseSleep();
 
     // Not async on purpose: usage errors (unsupported platform) should throw synchronously at the call site
     // ReSharper disable once MemberCanBePrivate.Global
@@ -72,17 +78,24 @@ public static class QuickTickTiming
     // after the caller created its run); the caller keeps ownership and disposes them
     internal static void MinimalSleep(QuickTickHandleResources? cachedHandles)
     {
-        if (!IsQuickTickSupported)
+        if (IsQuickTickSupported)
         {
-            Thread.Sleep(1);
+            if (cachedHandles != null)
+            {
+                QuickTickSleep(cachedHandles, FourHundredMicroSecondInTicks);
+            }
+            else
+            {
+                QuickTickSleep(FourHundredMicroSecondInTicks);
+            }
         }
-        else if (cachedHandles != null)
+        else if (IsClockNanosleepSupported)
         {
-            QuickTickSleep(cachedHandles, FourHundredMicroSecondInTicks);
+            LinuxInterop.PreciseSleep(TwoHundredFiftyMicroSecondInTicks);
         }
         else
         {
-            QuickTickSleep(FourHundredMicroSecondInTicks);
+            Thread.Sleep(1);
         }
     }
 
@@ -106,5 +119,20 @@ public static class QuickTickTiming
         }
 
         handles.TimerWaitHandle.WaitOne();
+    }
+
+    // Interruptible variant for the long sleep-until-near-deadline phase of HighResQuickTickTimer:
+    // waitHandles must contain the wait handle of handles' timer plus the event that wakes the sleep early.
+    // Waking early is safe because SetWaitableTimer resets a still-pending timer signal on the next call.
+    internal static void InterruptibleQuickTickSleep(QuickTickHandleResources handles, WaitHandle[] waitHandles, long tickToSleep)
+    {
+        var sleepTimeTicks = -tickToSleep; // Negative means relative time
+
+        if (!Win32Interop.SetWaitableTimer(handles.TimerHandle, ref sleepTimeTicks, 0, IntPtr.Zero, IntPtr.Zero, false))
+        {
+            throw new InvalidOperationException($"SetWaitableTimer failed: {Marshal.GetLastWin32Error()}");
+        }
+
+        WaitHandle.WaitAny(waitHandles);
     }
 }

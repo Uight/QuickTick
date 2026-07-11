@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using NUnit.Framework;
 using QuickTickLib;
@@ -24,11 +25,11 @@ public class TimerLifecycleTests
         }
     }
 
-    private static IQuickTickTimer CreateTimer(string kind) => kind switch
+    private static IQuickTickTimer CreateTimer(string kind, double intervalMs = IntervalMs) => kind switch
     {
-        "implementation" => new QuickTickTimerImplementation(IntervalMs),
-        "fallback"       => new QuickTickTimerFallback(IntervalMs),
-        "highResolution" => new HighResQuickTickTimer(IntervalMs),
+        "implementation" => new QuickTickTimerImplementation(intervalMs),
+        "fallback"       => new QuickTickTimerFallback(intervalMs),
+        "highResolution" => new HighResQuickTickTimer(intervalMs),
         _                => throw new ArgumentException($"Unknown timer kind: {kind}", nameof(kind))
     };
 
@@ -155,6 +156,23 @@ public class TimerLifecycleTests
 
         timer.Stop();
         Assert.That(handlerFinished.IsSet, Is.True, $"{kind}: Stop() must block until the handler completes (thread join)");
+    }
+
+    [TestCaseSource(nameof(AllTimerKinds))]
+    public void Stop_DuringLongWaitForDistantDeadline_ReturnsPromptly(string kind)
+    {
+        // With a 10 s interval the worker sits in its long wait (kernel timer wait, blocking take, or the
+        // high-res timer's sleep-until-near-deadline); Stop() must wake that wait instead of blocking in
+        // the worker join until the full interval runs out
+        using var timer = CreateTimer(kind, 10_000);
+        timer.Start();
+        Thread.Sleep(100); // Let the worker enter its long wait
+
+        var sw = Stopwatch.StartNew();
+        timer.Stop();
+        sw.Stop();
+
+        Assert.That(sw.Elapsed.TotalMilliseconds, Is.LessThan(1000), $"{kind}: Stop() did not interrupt the long wait promptly");
     }
 
     [TestCaseSource(nameof(AllTimerKinds))]

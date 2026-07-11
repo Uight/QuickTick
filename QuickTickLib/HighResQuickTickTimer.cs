@@ -10,8 +10,8 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     private volatile bool _running;
     private volatile bool _skipMissedIntervals;
     private double _intervalMs;
-    private volatile float _sleepThreshold = 1.5f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
-    private volatile float _yieldThreshold = 0.75f; // This is a value that works on Ubuntu and Windows with appropriate power settings. Getting this value was done by extensively testing with the TimingReportGenerator
+    private volatile float _sleepThreshold = HighResTimerDefaults.SleepThreshold;
+    private volatile float _yieldThreshold = HighResTimerDefaults.YieldThreshold;
     private long _intervalTicks;
     private ThreadPriority _threadPriority = ThreadPriority.Highest;
     private HighResQuickTickTimerRun? _currentRun;
@@ -66,7 +66,8 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
     /// <summary>
     /// Defines the minimum time that must be available towards the next timer iteration for the thread to sleep.
     /// Increasing this time can lead to better timing but increases CPU usage as the code will Yield or SpinWait instead.
-    /// Must be at least 1.0 and at most int.MaxValue.
+    /// Must be at least 0.5 and at most int.MaxValue. Values below 1.0 only make sense where the minimal sleep
+    /// is precise (Windows waitable timers, Linux clock_nanosleep); on the Thread.Sleep fallback they cause late ticks.
     /// YieldThreshold must always be less than or equal to SleepThreshold.
     /// Setting SleepThreshold to int.MaxValue will basically disable sleeping the thread and the timer will Yield or SpinWait the thread instead.
     /// </summary>
@@ -75,9 +76,9 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
         get => _sleepThreshold;
         set
         {
-            if (value < 1.0 || value > int.MaxValue || double.IsNaN(value))
+            if (value < 0.5 || value > int.MaxValue || double.IsNaN(value))
             {
-                throw new ArgumentOutOfRangeException(nameof(value), "SleepThreshold must be greater than or equal to 1.0 and smaller than int.MaxValue.");
+                throw new ArgumentOutOfRangeException(nameof(value), "SleepThreshold must be greater than or equal to 0.5 and smaller than int.MaxValue.");
             }
 
             if (_yieldThreshold > value)
@@ -154,6 +155,7 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
 
                 var run = _currentRun!; // While _running is true a current run always exists
                 run.CancellationTokenSource.Cancel();
+                run.StopEvent.Set(); // Wake the worker thread out of its long sleep phase
                 _currentRun = null;
 
                 if (Thread.CurrentThread == run.Thread)
@@ -203,7 +205,22 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
                         break;
                     }
 
-                    if (diffTicks >= QuickTickHelper.StopwatchTicksPerMillisecond * _sleepThreshold)
+                    var sleepThresholdTicks = QuickTickHelper.StopwatchTicksPerMillisecond * _sleepThreshold;
+                    // The margin floor protects sub-millisecond thresholds: the long sleep mechanism can overshoot
+                    // far more than the chunk sleep, so it must never be asked to wake closer to the deadline than
+                    // its own overshoot (see HighResTimerDefaults.LongSleepWakeMarginMs)
+                    var longSleepWakeTicks = Math.Max(2 * sleepThresholdTicks, QuickTickHelper.StopwatchTicksPerMillisecond * HighResTimerDefaults.LongSleepWakeMarginMs);
+
+                    // The extra millisecond keeps the long sleep from ever being shorter than the whole-millisecond
+                    // resolution of its event-wait fallback; below the line the short phases finish the job as before
+                    if (diffTicks >= longSleepWakeTicks + QuickTickHelper.StopwatchTicksPerMillisecond)
+                    {
+                        // Sleep most of the remaining time in one interruptible block, waking early enough that the
+                        // sleep/yield/spin ladder below handles the precise part. Overshoot is safe: this loop
+                        // re-measures the remaining time on every pass.
+                        SleepUntilNearDeadline(run, diffTicks - (long)longSleepWakeTicks);
+                    }
+                    else if (diffTicks >= sleepThresholdTicks)
                     {
                         QuickTickTiming.MinimalSleep(run.Handles);
                     }
@@ -287,6 +304,23 @@ public sealed class HighResQuickTickTimer : IQuickTickTimer
             // Outside the lock on purpose: once the run is unlinked Stop() can no longer reach these objects,
             // so disposing them cannot race the Cancel() call that only targets the current run
             run.Dispose();
+        }
+    }
+
+    private static void SleepUntilNearDeadline(HighResQuickTickTimerRun run, long stopwatchTicksToSleep)
+    {
+        if (run.LongSleepWaitHandles != null)
+        {
+            // One shot of the run's cached kernel timer; the stop event in the wait handles wakes it early
+            QuickTickTiming.InterruptibleQuickTickSleep(run.Handles!, run.LongSleepWaitHandles, QuickTickHelper.StopwatchTicksToTimeSpanTicks(stopwatchTicksToSleep));
+        }
+        else
+        {
+            // No kernel timer on this platform: a timed event wait is the interruptible long sleep. Its whole-
+            // millisecond resolution and Thread.Sleep-like overshoot are what the SleepThreshold defaults of the
+            // non-QuickTick tiers must cover.
+            var sleepTimeMs = (int)(stopwatchTicksToSleep / QuickTickHelper.StopwatchTicksPerMillisecond);
+            run.StopEvent.WaitOne(sleepTimeMs);
         }
     }
 
