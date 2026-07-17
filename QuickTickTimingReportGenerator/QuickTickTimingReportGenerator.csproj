@@ -11,7 +11,7 @@
   <ItemGroup>
     <PackageReference Include="KGySoft.CoreLibraries" Version="10.5.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <PackageReference Include="QuestPDF" Version="2026.7.0" />
+    <PackageReference Include="QuestPDF" Version="2026.7.1" />
     <PackageReference Include="SkiaSharp" Version="4.150.0" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="4.150.0" />
     <PackageReference Include="SkiaSharp.NativeAssets.macOS" Version="4.150.0" />
